@@ -1,12 +1,10 @@
 package com.example.garmingopromobile;
 
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.os.Bundle;
 
-import com.google.android.material.snackbar.Snackbar;
-
 import androidx.appcompat.app.AppCompatActivity;
-
-import android.view.View;
 
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
@@ -17,6 +15,12 @@ import com.example.garmingopromobile.databinding.ActivityMainBinding;
 
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.ArrayAdapter;
+import android.widget.Spinner;
+
+import java.util.ArrayList;
+import java.util.Set;
+
 
 public class MainActivity extends AppCompatActivity {
 
@@ -27,23 +31,43 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        binding = ActivityMainBinding.inflate(getLayoutInflater());
-        setContentView(binding.getRoot());
+        setContentView(R.layout.activity_main);
 
-        setSupportActionBar(binding.toolbar);
+        Spinner goProSpinner = findViewById(R.id.gopro_spinner); // Récupère la référence du Spinner dans votre layout XML
 
-        NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_content_main);
-        appBarConfiguration = new AppBarConfiguration.Builder(navController.getGraph()).build();
-        NavigationUI.setupActionBarWithNavController(this, navController, appBarConfiguration);
+        // Obtient la liste des GoPros appairées
+        ArrayList<BluetoothDevice> goPros = getPairedGoPros();
+        ArrayList<String> goProNames = new ArrayList<>();
+        for (BluetoothDevice gp : goPros) {
+            goProNames.add(gp.getName());
+        }
 
-        binding.fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
-            }
-        });
+
+        // Crée un adaptateur pour le Spinner en utilisant la liste des GoPros
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, goProNames);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+
+        // Applique l'adaptateur au Spinner
+        goProSpinner.setAdapter(adapter);
     }
+
+    private ArrayList<BluetoothDevice> getPairedGoPros() {
+        ArrayList<BluetoothDevice> pairedDevices = new ArrayList<>();
+        BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+
+        if (bluetoothAdapter != null) {
+            Set<BluetoothDevice> devices = bluetoothAdapter.getBondedDevices();
+
+            for (BluetoothDevice device : devices) {
+                if (device.getName().contains("GoPro")) {
+                    pairedDevices.add(device);
+                }
+            }
+        }
+
+        return pairedDevices;
+    }
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {

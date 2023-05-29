@@ -6,29 +6,57 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <com.google.android.material.appbar.AppBarLayout
+    <LinearLayout
+        android:id="@+id/linearLayout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:theme="@style/Theme.GarminGoProMobile.AppBarOverlay">
+        android:layout_height="match_parent"
+        android:background="#555555"
+        android:orientation="vertical">
 
-        <androidx.appcompat.widget.Toolbar
-            android:id="@+id/toolbar"
+        <com.google.android.material.appbar.AppBarLayout
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            android:background="?attr/colorPrimary"
-            app:popupTheme="@style/Theme.GarminGoProMobile.PopupOverlay" />
+            android:layout_height="wrap_content"
+            android:background="#2B2B2B"
+            android:theme="@style/Theme.GarminGoProMobile.AppBarOverlay">
 
-    </com.google.android.material.appbar.AppBarLayout>
+            <TextView
+                android:id="@+id/toolbar_title"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_gravity="center"
+                android:layout_margin="25dp"
+                android:fontFamily="@font/sohnebreit_halbfett"
+                android:rotationX="0"
+                android:text="Garmin GoPro Remote"
+                android:textAllCaps="false"
+                android:textSize="20sp" />
 
-    <include layout="@layout/content_main" />
+        </com.google.android.material.appbar.AppBarLayout>
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fab"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_marginEnd="@dimen/fab_margin"
-        android:layout_marginBottom="16dp"
-        app:srcCompat="@android:drawable/ic_dialog_email" />
+        <Spinner
+            android:id="@+id/watch_spinner"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_margin="10dp"
+            android:paddingLeft="15dp" />
+
+        <Spinner
+            android:id="@+id/gopro_spinner"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_margin="10dp"
+            android:paddingLeft="15dp" />
+
+        <TextView
+            android:id="@+id/textView"
+            android:layout_width="match_parent"
+            android:layout_height="fill_parent"
+            android:layout_margin="15dp"
+            android:background="#2B2B2B"
+            android:fontFamily="monospace"
+            android:padding="15dp"
+            android:text="TextView"
+            android:textColor="@color/white" />
+    </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
