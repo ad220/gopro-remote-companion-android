@@ -34,18 +34,20 @@
         </com.google.android.material.appbar.AppBarLayout>
 
         <Spinner
-            android:id="@+id/watch_spinner"
+            android:id="@+id/garmin_spinner"
             android:layout_width="match_parent"
             android:layout_height="50dp"
             android:layout_margin="10dp"
-            android:paddingLeft="15dp" />
+            android:paddingLeft="15dp"
+            android:popupBackground="#2B2B2B" />
 
         <Spinner
             android:id="@+id/gopro_spinner"
             android:layout_width="match_parent"
             android:layout_height="50dp"
             android:layout_margin="10dp"
-            android:paddingLeft="15dp" />
+            android:paddingLeft="15dp"
+            android:popupBackground="#2B2B2B" />
 
         <TextView
             android:id="@+id/textView"
