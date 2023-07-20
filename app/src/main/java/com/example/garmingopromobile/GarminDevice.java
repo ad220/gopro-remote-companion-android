@@ -12,9 +12,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class GarminDevice extends IQDevice {
-    ConnectIQ connectIQ;
-    GoPro linkedGoPro;
-    IQApp iqApp;
+    private ConnectIQ connectIQ;
+    private GoPro linkedGoPro;
+    private IQApp iqApp;
 
     public enum Communication {
         COM_CONNECT,
@@ -39,10 +39,8 @@ public class GarminDevice extends IQDevice {
                         System.out.println("Device connected");
                         try {
                             registerForMessages();
-                        } catch (InvalidStateException e) {
-                            throw new RuntimeException(e);
-                        } catch (ServiceUnavailableException e) {
-                            throw new RuntimeException(e);
+                        } catch (Exception e) {
+                            e.printStackTrace();
                         }
                         break;
                     case NOT_CONNECTED:
@@ -60,33 +58,34 @@ public class GarminDevice extends IQDevice {
     }
 
     private void registerForMessages() throws InvalidStateException, ServiceUnavailableException {
-        connectIQ.getApplicationInfo("1c0c49b8-5abb-4e59-a679-e102757ec01e", this, new ConnectIQ.IQApplicationInfoListener() {
+        connectIQ.getApplicationInfo("e3998790-3052-4fe7-8c81-0c11d0fc52fc", this, new ConnectIQ.IQApplicationInfoListener() { // old uuid 1c0c49b8-5abb-4e59-a679-e102757ec01e
             @Override
             public void onApplicationInfoReceived(IQApp iqApp) {
                 GarminDevice.this.iqApp = iqApp;
-
+                System.out.println("IQAPP STATUS: "+iqApp.getStatus());
                 try {
                     connectIQ.registerForAppEvents(GarminDevice.this, GarminDevice.this.iqApp, new ConnectIQ.IQApplicationEventListener() {
                         @Override
                         public void onMessageReceived(IQDevice iqDevice, IQApp iqApp, List<Object> list, ConnectIQ.IQMessageStatus iqMessageStatus) {
+                            System.out.println("message received");
                             if (iqMessageStatus==ConnectIQ.IQMessageStatus.SUCCESS) {
                                 try {
                                     onReceive(list);
                                 } catch (Exception e) {
-                                    System.out.println(e);
+                                    e.printStackTrace();
                                 }
                             }
                         }
                     });
                 } catch (Exception e) {
-                    System.out.println(e);
+                    e.printStackTrace();
                 }
 
             }
 
             @Override
             public void onApplicationNotInstalled(String s) {
-                System.out.println("app not installed");;
+                System.out.println("app not installed");
             }
         });
     }
@@ -109,7 +108,8 @@ public class GarminDevice extends IQDevice {
                 try {
                     connectIQ.sendMessage(device, iqApp, message, (iqDevice, iqApp, iqMessageStatus) -> {
                         if (iqMessageStatus != ConnectIQ.IQMessageStatus.SUCCESS) {
-                            System.out.println("message send failed"+iqMessageStatus);
+                            System.out.println("message send failed : "+iqMessageStatus);
+                            System.out.println("message content : "+message);
                         }
                     });
                 } catch (Exception e) {
@@ -126,6 +126,12 @@ public class GarminDevice extends IQDevice {
     public void onReceive(List<Object> data) throws InvalidStateException, ServiceUnavailableException {
         System.out.println(data);
         Communication type = Communication.values()[(int) ((List) data.get(0)).get(0)];
+        List loadout = null;
+        try {
+            loadout = (List) ((List) data.get(0)).get(1);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         switch (type) {
             case COM_CONNECT:
                 System.out.println("GP_CONNECT: "+linkedGoPro.connect());
@@ -137,16 +143,20 @@ public class GarminDevice extends IQDevice {
             case COM_FETCH_SETTINGS:
                 break;
             case COM_PUSH_SETTINGS:
+                linkedGoPro.sendSettings(loadout);
+                System.out.printf("push settings : "+loadout);
                 break;
             case COM_FETCH_STATES:
                 break;
             case COM_PUSH_STATES:
                 break;
             case COM_SHUTTER:
-                linkedGoPro.startRecording();
+                linkedGoPro.pressShutter();
                 System.out.println("shutter");
                 break;
             case COM_HIGHLIGHT:
+                linkedGoPro.pressHilight();
+                System.out.println("hilight");
                 break;
             case COM_LOCKED:
                 break;

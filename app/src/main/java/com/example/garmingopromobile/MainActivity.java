@@ -2,7 +2,6 @@ package com.example.garmingopromobile;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 
@@ -66,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
 //                log gopro connected
                 deviceInterface.setGoPro((GoPro) adapterView.getSelectedItem());
                 SharedPreferences.Editor editor = pref.edit();
-                editor.putString("gopro", deviceInterface.getGoPro().getBluetoothDevice().getAddress());
+                editor.putString("gopro", deviceInterface.getGoPro().getAddress());
 
             }
 
@@ -126,7 +125,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void refreshGarminSpinner(MainActivity parent) {
-        connectIQ = ConnectIQ.getInstance(parent, ConnectIQ.IQConnectType.WIRELESS);
+        connectIQ = ConnectIQ.getInstance(parent, ConnectIQ.IQConnectType.TETHERED);
         connectIQ.initialize(getApplicationContext(), true, new ConnectIQ.ConnectIQListener() {
             @Override
             public void onSdkReady() {
