@@ -45,12 +45,29 @@ public class GarminDevice extends IQDevice {
                         break;
                     case NOT_CONNECTED:
                         System.out.println("Device not connected");
+                        if (iqApp != null) {
+                            try {
+                                connectIQ.unregisterForApplicationEvents(GarminDevice.this, iqApp);
+                            } catch (InvalidStateException e) {
+                                e.printStackTrace();
+                            }
+                        }
                         break;
                     case NOT_PAIRED:
                         System.out.println("Device not paired");
+                        try {
+                            connectIQ.unregisterForDeviceEvents(GarminDevice.this);
+                        } catch (InvalidStateException e) {
+                            e.printStackTrace();
+                        }
                         break;
                     case UNKNOWN:
                         System.out.println("Device unknown");
+                        try {
+                            connectIQ.unregisterForDeviceEvents(GarminDevice.this);
+                        } catch (InvalidStateException e) {
+                            e.printStackTrace();
+                        }
                         break;
                 }
             }
@@ -125,16 +142,12 @@ public class GarminDevice extends IQDevice {
 
     public void onReceive(List<Object> data) throws InvalidStateException, ServiceUnavailableException {
         System.out.println(data);
-        Communication type = Communication.values()[(int) ((List) data.get(0)).get(0)];
-        List loadout = null;
-        try {
-            loadout = (List) ((List) data.get(0)).get(1);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        Communication type = Communication.values()[(int) ((List<?>) data.get(0)).get(0)];
+        Object loadout = ((List<?>) data.get(0)).get(1);
         switch (type) {
             case COM_CONNECT:
-                System.out.println("GP_CONNECT: "+linkedGoPro.connect());
+                if ((Integer) loadout == 0) System.out.println("Watch app started, connecting to gopro : "+linkedGoPro.connect());
+                else System.out.println("Watch app stopped, disconnecting gopro : "+linkedGoPro.disconnect());
 //                ArrayList<Object> msg = new ArrayList<>();
 //                msg.add(Communication.COM_CONNECT.ordinal());
 //                msg.add(0);
@@ -143,7 +156,7 @@ public class GarminDevice extends IQDevice {
             case COM_FETCH_SETTINGS:
                 break;
             case COM_PUSH_SETTINGS:
-                linkedGoPro.sendSettings(loadout);
+                linkedGoPro.sendSettings((List<Integer>) loadout);
                 System.out.printf("push settings : "+loadout);
                 break;
             case COM_FETCH_STATES:

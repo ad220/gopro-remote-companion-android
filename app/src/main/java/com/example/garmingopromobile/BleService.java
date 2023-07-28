@@ -118,11 +118,14 @@ public class BleService {
         }
     }
 
+//    TODO: tout passer en private
     GoPro gopro;
     Context appContext;
     BluetoothDevice bluetoothDevice;
     BluetoothLeService bleService;
     BluetoothGatt goproGatt;
+
+    private Thread keepAliveProcess;
 
 
     ArrayList<RequestType> requestTypeQueue;
@@ -151,6 +154,12 @@ public class BleService {
 
     public Boolean ConnectedAndReady = false;
     byte[] lastStatus = new byte[0];
+
+    public boolean disconnect() {
+        goproGatt.close();
+        stopKeepAlive();
+        return true;
+    }
 
     @SuppressLint("MissingPermission")
     public boolean connect() {
@@ -182,11 +191,12 @@ public class BleService {
                 @Override
                 public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
                     if (newState == BluetoothProfile.STATE_CONNECTED) {
-                        gopro.getLinkedWatch().send(GarminDevice.Communication.COM_CONNECT, 1);
+                        gopro.getLinkedWatch().send(GarminDevice.Communication.COM_CONNECT, 0);
                         System.out.println("GoPro ble connected");
                         gatt.discoverServices();
                     } else {
-                        gopro.getLinkedWatch().send(GarminDevice.Communication.COM_CONNECT, 2);
+                        gopro.disconnect();
+                        gopro.getLinkedWatch().send(GarminDevice.Communication.COM_CONNECT, 1);
                         System.out.println("GoPro ble disconnected");
                         ConnectedAndReady = false;
                     }
@@ -207,6 +217,7 @@ public class BleService {
                     }
                     byte[] request = new byte[] {(byte) 0x05, (byte) 0x52, (byte) 0x02, (byte) 0x03, (byte) 0x79};
                     prepareRequest(RequestType.CHARACTERISTIC, GoPro.QUERY_REQUEST, request, GoPro.QUERY_RESPONSE, null);
+                    startKeepAlive();
                 }
 
                 @Override
@@ -239,7 +250,7 @@ public class BleService {
                     System.out.println("Received response from camera");
                     super.onCharacteristicChanged(gatt, characteristic);
 
-                    if (characteristic.getUuid().equals(responseUuidQueue.get(0))) {
+                    if (!requestUuidQueue.isEmpty() && characteristic.getUuid().equals(responseUuidQueue.get(0))) {
 //                        goproGatt.setCharacteristicNotification(characteristic, false);
 //                        if (characteristic.getValue().equals(responseExpectedQueue.get(0))) {
 //                            System.out.println("Good camera reponse");
@@ -247,12 +258,9 @@ public class BleService {
 //                            System.out.println("Bad camera response error : expected "+responseExpectedQueue.get(0)+", but got "+characteristic.getValue());
 //                        }
                         popRequest();
-
-                        if (requestTypeQueue.isEmpty()) pendingRequest = false;
-                        else processRequest();
                     }
 
-                    if (characteristic.getUuid().equals(GoPro.QUERY_RESPONSE)) {
+                    else if (characteristic.getUuid().equals(GoPro.QUERY_RESPONSE)) {
                         byte[] response = characteristic.getValue();
                         showBytes(response);
                         switch (QueryID.get(response[1])) {
@@ -264,6 +272,9 @@ public class BleService {
                                 System.out.println("Unexpected query ID");
                         }
                     }
+
+                    if (requestTypeQueue.isEmpty()) pendingRequest = false;
+                    else processRequest();
 //                    synchronized (ChangeLock) {
 //                        waitingChange = false;
 //                        ChangeLock.notifyAll();
@@ -375,15 +386,44 @@ public class BleService {
 //        System.out.println("test");
     }
 
+    private void startKeepAlive() {
+        keepAliveProcess = new Thread() {
+            @Override
+            public void run() {
+                byte[] request = new byte[]{(byte) 0x03, (byte) 0x5b, (byte) 0x01, (byte) 0x42};
+                byte [] response = new byte[]{(byte) 0x02, (byte) 0x5b, (byte) 0x00};
+                while (true) {
+                    try {
+                        sleep(5000);
+                    } catch (InterruptedException e) {
+                        System.out.println("Keep alive thread interrupted");
+                        break;
+                    }
+                    prepareRequest(RequestType.CHARACTERISTIC, GoPro.SETTINGS_REQUEST, request, GoPro.SETTINGS_RESPONSE, response);
+                }
+            }
+        };
+        keepAliveProcess.start();
+    }
+
+    private void stopKeepAlive() {
+        keepAliveProcess.interrupt();
+    }
+
     private void prepareRequest(RequestType type, UUID requestID, byte[] requestData, UUID responseID, byte[] expectedResponse) {
+//        TODO: find expected response from request
         requestTypeQueue.add(type);
         requestDataQueue.add(requestData);
         requestUuidQueue.add(requestID);
         responseUuidQueue.add(responseID);
         responseExpectedQueue.add(expectedResponse);
 
-        if (!pendingRequest) processRequest();
-        else System.out.println("Unable to process while pending request : "+requestTypeQueue.get(0));
+        System.out.print("Submit request : "+type);
+        if (!pendingRequest) {
+            processRequest();
+            System.out.println();
+        }
+        else System.out.println(" - Unable to process while pending request : "+requestTypeQueue.get(0));
     }
 
     public void prepareRequest(UUID requestID, byte[] requestData, UUID responseID) {
