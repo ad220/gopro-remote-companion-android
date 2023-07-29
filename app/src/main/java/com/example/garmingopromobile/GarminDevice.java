@@ -157,7 +157,7 @@ public class GarminDevice extends IQDevice {
                 break;
             case COM_PUSH_SETTINGS:
                 linkedGoPro.sendSettings((List<Integer>) loadout);
-                System.out.printf("push settings : "+loadout);
+                System.out.println("push settings : "+loadout);
                 break;
             case COM_FETCH_STATES:
                 break;

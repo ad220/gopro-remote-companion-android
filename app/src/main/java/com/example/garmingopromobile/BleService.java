@@ -63,6 +63,14 @@ public class BleService {
             }
             return null;
         }
+
+        static ArrayList<Byte> getAllValues() {
+            ArrayList<Byte> result = new ArrayList<>();
+            for (SettingID id : SettingID.values()) {
+                result.add(id.getValue());
+            }
+            return result;
+        }
     }
 
     private enum StateID {
@@ -87,6 +95,13 @@ public class BleService {
             }
             return null;
         }
+        static ArrayList<Byte> getAllValues() {
+            ArrayList<Byte> result = new ArrayList<>();
+            for (StateID id : StateID.values()) {
+                result.add(id.getValue());
+            }
+            return result;
+        }
     }
 
     private enum QueryID {
@@ -110,12 +125,20 @@ public class BleService {
         public byte getValue() {
             return value;
         }
-        static QueryID get(byte value) {
+        static public QueryID get(byte value) {
             for (QueryID id: QueryID.values()) {
                 if (value == id.getValue()) return id;
             }
             return null;
         }
+        static ArrayList<Byte> getAllValues() {
+            ArrayList<Byte> result = new ArrayList<>();
+            for (QueryID id : QueryID.values()) {
+                result.add(id.getValue());
+            }
+            return result;
+        }
+
     }
 
 //    TODO: tout passer en private
@@ -158,6 +181,12 @@ public class BleService {
     public boolean disconnect() {
         goproGatt.close();
         stopKeepAlive();
+
+        requestTypeQueue.clear();
+        requestUuidQueue.clear();
+        requestDataQueue.clear();
+        responseUuidQueue.clear();
+        responseExpectedQueue.clear();
         return true;
     }
 
@@ -215,7 +244,7 @@ public class BleService {
                             }
                         }
                     }
-                    byte[] request = new byte[] {(byte) 0x05, (byte) 0x52, (byte) 0x02, (byte) 0x03, (byte) 0x79};
+                    byte[] request = new byte[] {(byte) 0x06, (byte) 0x52, (byte) 0x02, (byte) 0x03, (byte) 0x79, (byte) 0x86};
                     prepareRequest(RequestType.CHARACTERISTIC, GoPro.QUERY_REQUEST, request, GoPro.QUERY_RESPONSE, null);
                     startKeepAlive();
                 }
@@ -247,7 +276,7 @@ public class BleService {
 
                 @Override
                 public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-                    System.out.println("Received response from camera");
+                    System.out.println("Received response from camera, uuid="+characteristic.getUuid());
                     super.onCharacteristicChanged(gatt, characteristic);
 
                     if (!requestUuidQueue.isEmpty() && characteristic.getUuid().equals(responseUuidQueue.get(0))) {
@@ -263,14 +292,13 @@ public class BleService {
                     else if (characteristic.getUuid().equals(GoPro.QUERY_RESPONSE)) {
                         byte[] response = characteristic.getValue();
                         showBytes(response);
-                        switch (QueryID.get(response[1])) {
-                            case REGISTER_SETTINGS, NOTIF_SETTINGS:
-                                byte[] updatedSettings = Arrays.copyOfRange(response, 3, response.length);
-                                gopro.setSettings(updatedSettings);
-                            break;
-                            default:
-                                System.out.println("Unexpected query ID");
+
+                        if ((response[0] ^ (byte) 0xe0 | (byte) 0x1f) != (byte) 0xff) {
+                            System.out.println("Message too long");
+                            return;
                         }
+                        if (QueryID.getAllValues().contains(response[1])) decodeQuery(response);
+                        else System.out.println("Unexpected query ID");
                     }
 
                     if (requestTypeQueue.isEmpty()) pendingRequest = false;
@@ -384,6 +412,16 @@ public class BleService {
 //        Intent gattServiceIntent = new Intent(appContext, BluetoothLeService.class);
 //        appContext.bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
 //        System.out.println("test");
+    }
+
+    private void decodeQuery(byte[] response) {
+        switch (Objects.requireNonNull(QueryID.get(response[1]))) {
+            case REGISTER_SETTINGS, NOTIF_SETTINGS -> {
+                byte[] updatedSettings = Arrays.copyOfRange(response, 3, response.length);
+                gopro.setSettings(updatedSettings);
+            }
+            default -> System.out.println("Unexpected query ID");
+        }
     }
 
     private void startKeepAlive() {

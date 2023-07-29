@@ -125,7 +125,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void refreshGarminSpinner(MainActivity parent) {
-        connectIQ = ConnectIQ.getInstance(parent, ConnectIQ.IQConnectType.TETHERED);
+        connectIQ = ConnectIQ.getInstance(parent, ConnectIQ.IQConnectType.WIRELESS);
         connectIQ.initialize(getApplicationContext(), true, new ConnectIQ.ConnectIQListener() {
             @Override
             public void onSdkReady() {
