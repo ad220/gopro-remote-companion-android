@@ -2,6 +2,7 @@ package com.example.garmingopromobile;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.view.View;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -35,7 +36,7 @@ public class TextLog {
             public void run() {
                 textView.setText(TextLog.content);
                 scrollView.post(() -> {
-                    scrollView.scrollTo(0, scrollView.getBottom());
+                    scrollView.fullScroll(View.FOCUS_DOWN);
                 });
             }
         });

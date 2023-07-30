@@ -5,6 +5,8 @@ import android.content.Context;
 
 import androidx.annotation.NonNull;
 
+import org.w3c.dom.Text;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -73,7 +75,8 @@ public class GoPro {
     }
 
     public enum States {
-        REGION
+        REGION,
+        RECORDING
     }
 
     public enum Region {
@@ -103,13 +106,14 @@ public class GoPro {
         hypersmooth = null;
 
 //        sets settings map order
-        settings.put(Settings.RESOLUTION, null);
-        settings.put(Settings.RATIO, null);
-        settings.put(Settings.LENS, null);
-        settings.put(Settings.FRAMERATE, null);
+        for (Settings s : Settings.values()) {
+            settings.put(s, null);
+        }
 
 //        sets states map order
-        states.put(States.REGION, null);
+        for (States s : States.values()) {
+            states.put(s, null);
+        }
     }
 
     public boolean connect() {
@@ -319,6 +323,50 @@ public class GoPro {
         } else TextLog.logInfo("Lens remained the same, no request needed");
     }
 
+    public void setStatus(byte[] updatedStatus) {
+        // same as setSettings, but for states
+        int i = 0;
+        int length;
+        byte status;
+        byte[] value;
+
+        do {
+            status = updatedStatus[i];
+            length = updatedStatus[i+1];
+            value = Arrays.copyOfRange(updatedStatus, i+2, i+2+length);
+
+            if (BleService.StatusID.getAllValues().contains(updatedStatus[i])) decodeStatus(status, value);
+            else System.out.printf("Unexpected camera status ID : %x --> %x\n", status, value[0]);
+
+            i+=2+length;
+        } while (i<updatedStatus.length);
+
+        if (states.containsValue(0xff)) TextLog.logInfo("Wrong state detected");
+        else {
+            TextLog.logInfo("Sending states to watch : "+states);
+            linkedWatch.send(GarminDevice.Communication.COM_FETCH_STATES, new ArrayList<Integer>(states.values()));
+        }
+
+    }
+
+    public void decodeStatus(byte status, byte[] value) {
+        switch (Objects.requireNonNull(BleService.StatusID.get(status))) {
+            case ENCODING:
+                this.states.put(States.RECORDING, (int) value[0]);
+                if (isRecording()) bleService.prepareRequest(QUERY_REQUEST, new byte[]{(byte) 0x02, BleService.QueryID.GET_STATUS.getValue(), BleService.StatusID.PROGRESS.getValue()}, QUERY_RESPONSE);
+            case PROGRESS:
+                int progress = 0;
+                for (byte b : value) {
+                    progress = (progress << 8) + b;
+                }
+
+                TextLog.logInfo("Progress received : "+progress+", length = "+value.length);
+                linkedWatch.send(GarminDevice.Communication.COM_PROGRESS, (Integer) progress);
+            default:
+                TextLog.logInfo("Unexpected status ID");
+        }
+    }
+
     public GarminDevice getLinkedWatch() {return this.linkedWatch;}
 
     public void setLinkedWatch(GarminDevice linkedWatch) {
@@ -328,6 +376,8 @@ public class GoPro {
     public String getAddress() {
         return bleAddress;
     }
+
+    public boolean isRecording() {return states.get(States.RECORDING) == 1;}
 
     @NonNull
     @Override

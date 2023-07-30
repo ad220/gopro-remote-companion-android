@@ -24,7 +24,8 @@ public class GarminDevice extends IQDevice {
         COM_PUSH_STATES,
         COM_SHUTTER,
         COM_HIGHLIGHT,
-        COM_LOCKED
+        COM_LOCKED,
+        COM_PROGRESS
     }
 
     public GarminDevice(ConnectIQ connectIQ, long deviceId, String name) throws InvalidStateException, ServiceUnavailableException {

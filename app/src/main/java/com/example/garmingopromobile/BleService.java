@@ -73,7 +73,10 @@ public class BleService {
         }
     }
 
-    private enum StateID {
+    public enum StatusID {
+//        TODO: send status notification to watch (HOT, COLD)
+//        TODO: check for status before sending request (BUSY, READY)
+//        TODO: set as camera state (BATTERY, ENCODING) + send PROGRESS when ENCODING changed
         HOT             ((byte) 6),
         BUSY            ((byte) 8),
         ENCODING        ((byte) 10),
@@ -83,28 +86,28 @@ public class BleService {
         COLD            ((byte) 85);
 
         private final byte value;
-        StateID(byte value) {
+        StatusID(byte value) {
             this.value = value;
         }
         public byte getValue() {
             return value;
         }
-        static StateID get(byte value) {
-            for (StateID id: StateID.values()) {
+        static StatusID get(byte value) {
+            for (StatusID id: StatusID.values()) {
                 if (value == id.getValue()) return id;
             }
             return null;
         }
         static ArrayList<Byte> getAllValues() {
             ArrayList<Byte> result = new ArrayList<>();
-            for (StateID id : StateID.values()) {
+            for (StatusID id : StatusID.values()) {
                 result.add(id.getValue());
             }
             return result;
         }
     }
 
-    private enum QueryID {
+    public enum QueryID {
         GET_SETTINGS            ((byte) 0x12),
         GET_STATUS              ((byte) 0x13),
         GET_AVAILABLE           ((byte) 0x32),
@@ -244,8 +247,14 @@ public class BleService {
                             }
                         }
                     }
-                    byte[] request = new byte[] {(byte) 0x06, (byte) 0x52, (byte) 0x02, (byte) 0x03, (byte) 0x79, (byte) 0x86};
-                    prepareRequest(RequestType.CHARACTERISTIC, GoPro.QUERY_REQUEST, request, GoPro.QUERY_RESPONSE, null);
+//                    Register for settings change : resolution, framerate, lens, hypersmooth and flicker
+                    byte[] registerSettings = new byte[] {(byte) 0x06, QueryID.REGISTER_SETTINGS.getValue(), SettingID.RESOLUTION.getValue(), SettingID.FRAMERATE.getValue(), SettingID.LENS.getValue(), SettingID.HYPERSMOOTH.getValue(), SettingID.FLICKER.getValue()};
+                    prepareRequest(RequestType.CHARACTERISTIC, GoPro.QUERY_REQUEST, registerSettings, GoPro.QUERY_RESPONSE, null);
+
+//                    Register for status change : encoding
+                    byte[] registerStatus = new byte[] {(byte) 0x06, QueryID.REGISTER_STATUS.getValue(), StatusID.ENCODING.getValue()};
+                    prepareRequest(RequestType.CHARACTERISTIC, GoPro.QUERY_REQUEST, registerStatus, GoPro.QUERY_RESPONSE, null);
+
                     startKeepAlive();
                 }
 
@@ -419,6 +428,10 @@ public class BleService {
             case REGISTER_SETTINGS, NOTIF_SETTINGS -> {
                 byte[] updatedSettings = Arrays.copyOfRange(response, 3, response.length);
                 gopro.setSettings(updatedSettings);
+            }
+            case REGISTER_STATUS, NOTIF_STATUS -> {
+                byte[] updatedStatus = Arrays.copyOfRange(response, 3, response.length);
+                gopro.setStatus(updatedStatus);
             }
             default -> TextLog.logInfo("Unexpected query ID");
         }

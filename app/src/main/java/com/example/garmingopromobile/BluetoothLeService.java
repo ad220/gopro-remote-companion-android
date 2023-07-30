@@ -69,11 +69,6 @@ public class BluetoothLeService extends Service {
     private static final UUID GOPRO_SERVICE_UUID = UUID.fromString("0000fea6-0000-1000-8000-00805f9b34fb");
     private static final UUID GOPRO_COMMAND_UUID = UUID.fromString("b5f90072-aa8d-11e3-9046-0002a5d5c51b");
 
-    public void startRecording() {
-        // Send the start recording command to the GoPro
-        byte[] command = new byte[]{(byte) 0x03, (byte) 0x01, (byte) 0x01, (byte) 0x01};
-        writeCharacteristic(GOPRO_COMMAND_UUID, command);
-    }
 
     private void writeCharacteristic(UUID command, byte[] request) {
         BluetoothGattCharacteristic characteristic = mBluetoothGatt.getService(GOPRO_SERVICE_UUID)
