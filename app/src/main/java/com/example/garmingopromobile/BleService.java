@@ -196,7 +196,7 @@ public class BleService {
         if (ConnectedAndReady)
             return true;
 
-        System.out.println(bluetoothDevice);
+        TextLog.logInfo(bluetoothDevice);
         if (bluetoothDevice != null) {
             if (goproGatt != null) {
                 try {
@@ -205,7 +205,7 @@ public class BleService {
                 }
             }
 //            if (ActivityCompat.checkSelfPermission(appContext, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-//                System.out.println("perm not granted");
+//                TextLog.logInfo("perm not granted");
 //                // TODO: Consider calling
 //                //    ActivityCompat#requestPermissions
 //                // here to request the missing permissions, and then overriding
@@ -215,18 +215,18 @@ public class BleService {
 //                // for ActivityCompat#requestPermissions for more details.
 //                return false;
 //            }
-            System.out.println("connect gatt");
+            TextLog.logInfo("connect gatt");
             goproGatt = bluetoothDevice.connectGatt(appContext, false, new BluetoothGattCallback() {
                 @Override
                 public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
                     if (newState == BluetoothProfile.STATE_CONNECTED) {
                         gopro.getLinkedWatch().send(GarminDevice.Communication.COM_CONNECT, 0);
-                        System.out.println("GoPro ble connected");
+                        TextLog.logInfo("GoPro ble connected");
                         gatt.discoverServices();
                     } else {
                         gopro.disconnect();
                         gopro.getLinkedWatch().send(GarminDevice.Communication.COM_CONNECT, 1);
-                        System.out.println("GoPro ble disconnected");
+                        TextLog.logInfo("GoPro ble disconnected");
                         ConnectedAndReady = false;
                     }
                     super.onConnectionStateChange(gatt, status, newState);
@@ -235,7 +235,7 @@ public class BleService {
                 @Override
                 public void onServicesDiscovered(BluetoothGatt gatt, int status) {
                     super.onServicesDiscovered(gatt, status);
-                    System.out.println("Services discovered");
+                    TextLog.logInfo("Services discovered");
                     for (BluetoothGattService service : gatt.getServices()) {
                         for (BluetoothGattCharacteristic characteristic: service.getCharacteristics()) {
                             if (characteristic.getUuid().equals(GoPro.COMMAND_RESPONSE) || characteristic.getUuid().equals(GoPro.SETTINGS_RESPONSE) ||characteristic.getUuid().equals(GoPro.QUERY_RESPONSE)) {
@@ -267,7 +267,7 @@ public class BleService {
 
                 @Override
                 public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-                    System.out.println("Descriptor written");
+                    TextLog.logInfo("Descriptor written");
                     super.onDescriptorWrite(gatt, descriptor, status);
                     popRequest();
                     if (requestTypeQueue.isEmpty()) pendingRequest = false;
@@ -276,15 +276,15 @@ public class BleService {
 
                 @Override
                 public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-                    System.out.println("Received response from camera, uuid="+characteristic.getUuid());
+                    TextLog.logInfo("Received response from camera, uuid="+characteristic.getUuid());
                     super.onCharacteristicChanged(gatt, characteristic);
 
                     if (!requestUuidQueue.isEmpty() && characteristic.getUuid().equals(responseUuidQueue.get(0))) {
 //                        goproGatt.setCharacteristicNotification(characteristic, false);
 //                        if (characteristic.getValue().equals(responseExpectedQueue.get(0))) {
-//                            System.out.println("Good camera reponse");
+//                            TextLog.logInfo("Good camera reponse");
 //                        } else {
-//                            System.out.println("Bad camera response error : expected "+responseExpectedQueue.get(0)+", but got "+characteristic.getValue());
+//                            TextLog.logInfo("Bad camera response error : expected "+responseExpectedQueue.get(0)+", but got "+characteristic.getValue());
 //                        }
                         popRequest();
                     }
@@ -294,11 +294,11 @@ public class BleService {
                         showBytes(response);
 
                         if ((response[0] ^ (byte) 0xe0 | (byte) 0x1f) != (byte) 0xff) {
-                            System.out.println("Message too long");
+                            TextLog.logInfo("Message too long");
                             return;
                         }
                         if (QueryID.getAllValues().contains(response[1])) decodeQuery(response);
-                        else System.out.println("Unexpected query ID");
+                        else TextLog.logInfo("Unexpected query ID");
                     }
 
                     if (requestTypeQueue.isEmpty()) pendingRequest = false;
@@ -349,7 +349,7 @@ public class BleService {
 //                        return;
 //                    }
 //                    lastStatus = newStatus;
-//                    //System.out.println("Status notified : " + Arrays.toString(lastStatus));
+//                    //TextLog.logInfo("Status notified : " + Arrays.toString(lastStatus));
 //                    synchronized (readyLock) {
 //                        waitForReady = false;
 //                        readyLock.notifyAll();
@@ -387,7 +387,7 @@ public class BleService {
 //                bleService = ((BluetoothLeService.LocalBinder) service).getService();
 //                if (!bleService.initialize()) {
 ////                    log unable to initialize bluetooth
-//                    System.out.println("unable to initialize bluetooth");
+//                    TextLog.logInfo("unable to initialize bluetooth");
 //                }
 //
 //                ArrayList<Object> connectionSuccessMessage = new ArrayList<>();
@@ -411,7 +411,7 @@ public class BleService {
 //
 //        Intent gattServiceIntent = new Intent(appContext, BluetoothLeService.class);
 //        appContext.bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
-//        System.out.println("test");
+//        TextLog.logInfo("test");
     }
 
     private void decodeQuery(byte[] response) {
@@ -420,7 +420,7 @@ public class BleService {
                 byte[] updatedSettings = Arrays.copyOfRange(response, 3, response.length);
                 gopro.setSettings(updatedSettings);
             }
-            default -> System.out.println("Unexpected query ID");
+            default -> TextLog.logInfo("Unexpected query ID");
         }
     }
 
@@ -434,7 +434,7 @@ public class BleService {
                     try {
                         sleep(5000);
                     } catch (InterruptedException e) {
-                        System.out.println("Keep alive thread interrupted");
+                        TextLog.logInfo("Keep alive thread interrupted");
                         break;
                     }
                     prepareRequest(RequestType.CHARACTERISTIC, GoPro.SETTINGS_REQUEST, request, GoPro.SETTINGS_RESPONSE, response);
@@ -459,9 +459,9 @@ public class BleService {
         System.out.print("Submit request : "+type);
         if (!pendingRequest) {
             processRequest();
-            System.out.println();
+            TextLog.logInfo();
         }
-        else System.out.println(" - Unable to process while pending request : "+requestTypeQueue.get(0));
+        else TextLog.logInfo(" - Unable to process while pending request : "+requestTypeQueue.get(0));
     }
 
     public void prepareRequest(UUID requestID, byte[] requestData, UUID responseID) {
@@ -499,6 +499,6 @@ public class BleService {
         for (byte b: data) {
             System.out.printf("%02x:", b);
         }
-        System.out.println();
+        TextLog.logInfo();
     }
 }

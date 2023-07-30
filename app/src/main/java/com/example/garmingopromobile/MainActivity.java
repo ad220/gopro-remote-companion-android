@@ -1,5 +1,6 @@
 package com.example.garmingopromobile;
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.SharedPreferences;
@@ -24,6 +25,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
+import android.widget.TextView;
 
 import java.util.ArrayList;
 import java.util.Set;
@@ -41,6 +43,8 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         super.onCreate(savedInstanceState);
         deviceInterface = new DeviceInterface();
+
+        TextLog.bind(findViewById(R.id.textView), findViewById(R.id.scrollView), this);
 
 
         refreshGarminSpinner(this);
@@ -98,12 +102,12 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    @SuppressLint("MissingPermission")
     private ArrayList<GoPro> getPairedGoPros() {
         ArrayList<GoPro> pairedGoPros = new ArrayList<>();
         BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
-        if (bluetoothAdapter != null) {
-            Set<BluetoothDevice> devices = bluetoothAdapter.getBondedDevices();
+        if (bluetoothAdapter != null) { Set<BluetoothDevice> devices = bluetoothAdapter.getBondedDevices();
 
             for (BluetoothDevice device : devices) {
                 if (device.getName().contains("GoPro")) {
@@ -125,14 +129,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void refreshGarminSpinner(MainActivity parent) {
-        connectIQ = ConnectIQ.getInstance(parent, ConnectIQ.IQConnectType.WIRELESS);
+        connectIQ = ConnectIQ.getInstance(parent, ConnectIQ.IQConnectType.TETHERED);
         connectIQ.initialize(getApplicationContext(), true, new ConnectIQ.ConnectIQListener() {
             @Override
             public void onSdkReady() {
                 try {
                     ArrayList<IQDevice> pairedGarminDevices;
                     pairedGarminDevices = (ArrayList<IQDevice>) connectIQ.getKnownDevices();
-                    System.out.println(pairedGarminDevices);
+                    TextLog.logInfo(pairedGarminDevices);
 
                     Spinner garminSpinner = findViewById(R.id.garmin_spinner);
                     ArrayAdapter<IQDevice> adapter = new ArrayAdapter<>(parent, android.R.layout.simple_spinner_item, pairedGarminDevices);
@@ -148,12 +152,12 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onInitializeError(ConnectIQ.IQSdkErrorStatus iqSdkErrorStatus) {
-                System.out.println(iqSdkErrorStatus);
+                TextLog.logInfo(iqSdkErrorStatus);
             }
 
             @Override
             public void onSdkShutDown() {
-                System.out.println("iq sdk shutdown");
+                TextLog.logInfo("iq sdk shutdown");
             }
         });
     }

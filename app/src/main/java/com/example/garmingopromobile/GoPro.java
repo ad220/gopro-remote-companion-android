@@ -157,15 +157,15 @@ public class GoPro {
 
 //        Send received settings to watch
 //        TODO: detect wrong values on watch
-        if (settings.containsValue(0xff)) System.out.println("Wrong setting detected");
+        if (settings.containsValue(0xff)) TextLog.logInfo("Wrong setting detected");
         else {
-            System.out.println("Sending settings to watch : "+settings);
+            TextLog.logInfo("Sending settings to watch : "+settings);
             linkedWatch.send(GarminDevice.Communication.COM_FETCH_SETTINGS, new ArrayList<Integer>(settings.values()));
         }
 
-        if (states.containsValue(0xff)) System.out.println("Wrong state detected");
+        if (states.containsValue(0xff)) TextLog.logInfo("Wrong state detected");
         else {
-            System.out.println("Sending states to watch : "+states);
+            TextLog.logInfo("Sending states to watch : "+states);
             linkedWatch.send(GarminDevice.Communication.COM_FETCH_STATES, new ArrayList<Integer>(states.values()));
         }
     }
@@ -253,7 +253,7 @@ public class GoPro {
                 }
                 break;
             default:
-                System.out.println("Unexpected setting ID");
+                TextLog.logInfo("Unexpected setting ID");
         }
     }
 
@@ -265,7 +265,7 @@ public class GoPro {
 //        Resolution and ratio
         if (!this.settings.get(Settings.RESOLUTION).equals(settings.get(Settings.RESOLUTION.ordinal())) || !this.settings.get(Settings.RATIO).equals(settings.get(Settings.RATIO.ordinal()))) {
             request = new byte[]{(byte) 0x03, BleService.SettingID.RESOLUTION.getValue(), (byte) 0x01, (byte) 0xff};
-            System.out.println("Setting following resolution :"+ Resolutions.values()[settings.get(Settings.RESOLUTION.ordinal())]);
+            TextLog.logInfo("Setting following resolution :"+ Resolutions.values()[settings.get(Settings.RESOLUTION.ordinal())]);
             request[3] = switch (Resolutions.values()[settings.get(Settings.RESOLUTION.ordinal())]) {
                 case _5K3 -> switch (Ratios.values()[settings.get(Settings.RATIO.ordinal())]) {
                     case _8R7 -> (byte) 0x1a;
@@ -288,12 +288,12 @@ public class GoPro {
                 };
             };
             bleService.prepareRequest(SETTINGS_REQUEST, request, SETTINGS_RESPONSE);
-        } else System.out.println("Resolution and ratio remained the same, no request needed");
+        } else TextLog.logInfo("Resolution and ratio remained the same, no request needed");
 
 //        Framerate
         if (!this.settings.get(Settings.FRAMERATE).equals(settings.get(Settings.FRAMERATE.ordinal()))) {
             request = new byte[]{(byte) 0x03, BleService.SettingID.FRAMERATE.getValue(), (byte) 0x01, (byte) 0xff};
-            System.out.println("Setting following framerate :"+ Framerates.values()[settings.get(Settings.FRAMERATE.ordinal())]);
+            TextLog.logInfo("Setting following framerate :"+ Framerates.values()[settings.get(Settings.FRAMERATE.ordinal())]);
             request[3] = switch (Framerates.values()[settings.get(Settings.FRAMERATE.ordinal())]) {
                 case _240 -> isRegionPAL() ? (byte) 0x0d : (byte) 0x00;
                 case _120 -> isRegionPAL() ? (byte) 0x02 : (byte) 0x01;
@@ -302,12 +302,12 @@ public class GoPro {
                 case _24 -> (byte) 0x0a;
             };
             bleService.prepareRequest(SETTINGS_REQUEST, request, SETTINGS_RESPONSE);
-        } else System.out.println("Framerate remained the same, no request needed");
+        } else TextLog.logInfo("Framerate remained the same, no request needed");
 
 //        Lens
         if (!this.settings.get(Settings.LENS).equals(settings.get(Settings.LENS.ordinal()))) {
             request = new byte[]{(byte) 0x03, BleService.SettingID.LENS.getValue(), (byte) 0x01, (byte) 0xff};
-            System.out.println("Setting following lens :"+ Lenses.values()[settings.get(Settings.LENS.ordinal())]);
+            TextLog.logInfo("Setting following lens :"+ Lenses.values()[settings.get(Settings.LENS.ordinal())]);
             request[3] = switch (Lenses.values()[settings.get(Settings.LENS.ordinal())]) {
                 case _HYPERVIEW -> (byte) 0x09;
                 case _SUPERVIEW -> (byte) 0x03;
@@ -316,7 +316,7 @@ public class GoPro {
                 case _LINEARLOCK -> (byte) 0x0a;
             };
             bleService.prepareRequest(SETTINGS_REQUEST, request, SETTINGS_RESPONSE);
-        } else System.out.println("Lens remained the same, no request needed");
+        } else TextLog.logInfo("Lens remained the same, no request needed");
     }
 
     public GarminDevice getLinkedWatch() {return this.linkedWatch;}

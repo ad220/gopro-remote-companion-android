@@ -38,7 +38,8 @@
             android:layout_width="match_parent"
             android:layout_height="50dp"
             android:layout_margin="10dp"
-            android:paddingLeft="15dp"
+            android:paddingStart="15dp"
+            android:paddingEnd="15dp"
             android:popupBackground="#2B2B2B" />
 
         <Spinner
@@ -46,19 +47,36 @@
             android:layout_width="match_parent"
             android:layout_height="50dp"
             android:layout_margin="10dp"
-            android:paddingLeft="15dp"
+            android:paddingStart="15dp"
+            android:paddingEnd="15dp"
             android:popupBackground="#2B2B2B" />
 
-        <TextView
-            android:id="@+id/textView"
+        <ScrollView
+            android:id="@+id/scrollView"
             android:layout_width="match_parent"
-            android:layout_height="fill_parent"
+            android:layout_height="match_parent"
+            android:layout_gravity="bottom"
             android:layout_margin="15dp"
             android:background="#2B2B2B"
-            android:fontFamily="monospace"
-            android:padding="15dp"
-            android:text="TextView"
-            android:textColor="@color/white" />
+            android:fillViewport="true">
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="bottom">
+
+                <TextView
+                    android:id="@+id/textView"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:padding="15dp"
+                    android:text="log stuff"
+                    android:textColor="@android:color/secondary_text_dark"
+                    android:textSize="8sp" />
+            </RelativeLayout>
+        </ScrollView>
+
     </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
