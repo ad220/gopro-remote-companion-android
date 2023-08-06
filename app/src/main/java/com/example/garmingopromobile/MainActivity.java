@@ -1,8 +1,12 @@
 package com.example.garmingopromobile;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.app.ActivityManager;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 
@@ -24,7 +28,9 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.CompoundButton;
 import android.widget.Spinner;
+import android.widget.Switch;
 import android.widget.TextView;
 
 import java.util.ArrayList;
@@ -32,135 +38,109 @@ import java.util.Set;
 
 
 public class MainActivity extends AppCompatActivity {
-
     private AppBarConfiguration appBarConfiguration;
     private ActivityMainBinding binding;
-    private DeviceInterface deviceInterface;
-    private ConnectIQ connectIQ;
+    private BackgroundService backgroundService;
+
+    public boolean foregroundServiceRunning(){
+        ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        for(ActivityManager.RunningServiceInfo service: activityManager.getRunningServices(Integer.MAX_VALUE)) {
+            if(BackgroundService.class.getName().equals(service.service.getClassName())) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         setContentView(R.layout.activity_main);
         super.onCreate(savedInstanceState);
-        deviceInterface = new DeviceInterface();
 
-        TextLog.bind(findViewById(R.id.textView), findViewById(R.id.scrollView), this);
-
-
-        refreshGarminSpinner(this);
-        ArrayList<GoPro> pairedGoPros = getPairedGoPros();
-
-        SharedPreferences pref = this.getSharedPreferences("setDevices", MODE_PRIVATE);
-        try {
-            deviceInterface.setWatch(new GarminDevice(connectIQ, pref.getLong("garminID", 0), pref.getString("garminName", "")));
-            deviceInterface.setGoPro(searchGoProAddress(pairedGoPros, pref.getString("gopro", "")));
-        } catch (Exception e) {
-            e.printStackTrace();
+        boolean waitForService = !foregroundServiceRunning();
+        if (waitForService) {
+            Intent serviceIntent = new Intent(this, BackgroundService.class);
+            if (getSharedPreferences("savedPrefs", MODE_PRIVATE).getBoolean("backgroundToggle", false)) startForegroundService(serviceIntent);
+            else startService(serviceIntent);
+            System.out.println("Foreground Service not running");
         }
 
-
-        Spinner goProSpinner = findViewById(R.id.gopro_spinner); // Récupère la référence du Spinner dans votre layout XML
-        ArrayAdapter<GoPro> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, pairedGoPros);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        goProSpinner.setAdapter(adapter);
-        goProSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+        new Thread(new Runnable() {
             @Override
-            public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-//                log gopro connected
-                deviceInterface.setGoPro((GoPro) adapterView.getSelectedItem());
-                SharedPreferences.Editor editor = pref.edit();
-                editor.putString("gopro", deviceInterface.getGoPro().getAddress());
-
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> adapterView) {
-            }
-        });
-
-        Spinner garminSpinner = findViewById(R.id.garmin_spinner);
-        garminSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-                try {
-                    IQDevice device = (IQDevice) adapterView.getSelectedItem();
-                    GarminDevice garminDevice = new GarminDevice(connectIQ, device.getDeviceIdentifier(), device.getFriendlyName());
-                    deviceInterface.setWatch(garminDevice);
-                    SharedPreferences.Editor editor = pref.edit();
-                    editor.putLong("garminID", device.getDeviceIdentifier());
-                    editor.putString("garminName", device.getFriendlyName());
-
-                } catch (InvalidStateException | ServiceUnavailableException e) {
-                    e.printStackTrace();
+            public void run() {
+                if (waitForService) {
+                    try {
+                        synchronized (BackgroundService.synchronizer) {
+                            BackgroundService.synchronizer.wait(5000);
+                        }
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
-            }
+                backgroundService = BackgroundService.getInstance();
+                System.out.println(backgroundService);
 
-            @Override
-            public void onNothingSelected(AdapterView<?> adapterView) {
-            }
-        });
+                TextLog.bind(findViewById(R.id.textView), findViewById(R.id.scrollView), MainActivity.this);
 
+                Spinner goProSpinner = findViewById(R.id.gopro_spinner);
+                ArrayList<GoPro> pairedGoPros = backgroundService.getPairedGoPros();
+                ArrayAdapter<GoPro> goproAdapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_spinner_item, pairedGoPros);
+                goproAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+
+                Spinner garminSpinner = findViewById(R.id.garmin_spinner);
+                ArrayList<IQDevice> pairedGarminDevices = backgroundService.getPairedWatches();
+                ArrayAdapter<IQDevice> garminAdapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_spinner_item, pairedGarminDevices);
+                garminAdapter.setDropDownViewResource((android.R.layout.simple_spinner_dropdown_item));
+
+
+                @SuppressLint("UseSwitchCompatOrMaterialCode") Switch backgroundSwitch = findViewById(R.id.backgroundSwitch);
+
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        TextLog.activateUI();
+
+                        goProSpinner.setAdapter(goproAdapter);
+                        goProSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                            @Override
+                            public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+                                backgroundService.setGoPro((GoPro) adapterView.getSelectedItem());
+                            }
+
+                            @Override
+                            public void onNothingSelected(AdapterView<?> adapterView) {
+                            }
+                        });
+
+                        garminSpinner.setAdapter(garminAdapter);
+                        garminSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                            @Override
+                            public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+                                try {
+                                    IQDevice device = (IQDevice) adapterView.getSelectedItem();
+                                    backgroundService.setWatch(device.getDeviceIdentifier(), device.getFriendlyName());
+                                } catch (InvalidStateException | ServiceUnavailableException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+
+                            @Override
+                            public void onNothingSelected(AdapterView<?> adapterView) {
+                            }
+                        });
+
+                        backgroundSwitch.setChecked(getSharedPreferences("savedPrefs", MODE_PRIVATE).getBoolean("backgroundToggle", false));
+                        backgroundSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                                backgroundService.setBackgroundToggle(isChecked);
+                            }
+                        });
+                    }
+                });
+            }
+        }).start();
     }
 
-    @SuppressLint("MissingPermission")
-    private ArrayList<GoPro> getPairedGoPros() {
-        ArrayList<GoPro> pairedGoPros = new ArrayList<>();
-        BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-
-        if (bluetoothAdapter != null) { Set<BluetoothDevice> devices = bluetoothAdapter.getBondedDevices();
-
-            for (BluetoothDevice device : devices) {
-                if (device.getName().contains("GoPro")) {
-                    pairedGoPros.add(new GoPro(device, this));
-                }
-            }
-        }
-
-        return pairedGoPros;
-    }
-
-    private GoPro searchGoProAddress(ArrayList<GoPro> goProList, String address) {
-        for (GoPro gp: goProList) {
-            if (gp.getAddress().equals(address)) {
-                return gp;
-            }
-        }
-        return null;
-    }
-
-    private void refreshGarminSpinner(MainActivity parent) {
-        connectIQ = ConnectIQ.getInstance(parent, ConnectIQ.IQConnectType.TETHERED);
-        connectIQ.initialize(getApplicationContext(), true, new ConnectIQ.ConnectIQListener() {
-            @Override
-            public void onSdkReady() {
-                try {
-                    ArrayList<IQDevice> pairedGarminDevices;
-                    pairedGarminDevices = (ArrayList<IQDevice>) connectIQ.getKnownDevices();
-                    TextLog.logInfo(pairedGarminDevices);
-
-                    Spinner garminSpinner = findViewById(R.id.garmin_spinner);
-                    ArrayAdapter<IQDevice> adapter = new ArrayAdapter<>(parent, android.R.layout.simple_spinner_item, pairedGarminDevices);
-                    adapter.setDropDownViewResource((android.R.layout.simple_spinner_dropdown_item));
-
-                    garminSpinner.setAdapter(adapter);
-                } catch (InvalidStateException e) {
-                    e.printStackTrace();
-                } catch (ServiceUnavailableException e) {
-                    e.printStackTrace();
-                }
-            }
-
-            @Override
-            public void onInitializeError(ConnectIQ.IQSdkErrorStatus iqSdkErrorStatus) {
-                TextLog.logInfo(iqSdkErrorStatus);
-            }
-
-            @Override
-            public void onSdkShutDown() {
-                TextLog.logInfo("iq sdk shutdown");
-            }
-        });
-    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {

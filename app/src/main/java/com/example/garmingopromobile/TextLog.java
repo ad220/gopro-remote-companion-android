@@ -9,14 +9,14 @@ import android.widget.TextView;
 import org.w3c.dom.Text;
 
 public class TextLog {
-
-    private static String content;
+    static private String content;
     @SuppressLint("StaticFieldLeak")
-    static TextView textView;
+    static private TextView textView;
     @SuppressLint("StaticFieldLeak")
-    static ScrollView scrollView;
+    static private ScrollView scrollView;
     @SuppressLint("StaticFieldLeak")
-    static Activity activity;
+    static private Activity activity;
+    static private boolean logToUI;
 
 
     static void bind(TextView textView, ScrollView scrollView, Activity activity ) {
@@ -31,16 +31,26 @@ public class TextLog {
         if (text == null) text = "";
         TextLog.content = TextLog.content + text + "\n";
 
-        activity.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                textView.setText(TextLog.content);
-                scrollView.post(() -> {
-                    scrollView.fullScroll(View.FOCUS_DOWN);
-                });
-            }
-        });
+        if (logToUI) {
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    textView.setText(TextLog.content);
+                    scrollView.post(() -> {
+                        scrollView.fullScroll(View.FOCUS_DOWN);
+                    });
+                }
+            });
+        }
 
         System.out.println(text);
+    }
+
+    static public void activateUI() {
+        logToUI = true;
+    }
+
+    static public void deactivateUI() {
+        logToUI = false;
     }
 }
