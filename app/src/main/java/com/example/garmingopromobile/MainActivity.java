@@ -92,7 +92,6 @@ public class MainActivity extends AppCompatActivity {
                 ArrayAdapter<IQDevice> garminAdapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_spinner_item, pairedGarminDevices);
                 garminAdapter.setDropDownViewResource((android.R.layout.simple_spinner_dropdown_item));
 
-
                 @SuppressLint("UseSwitchCompatOrMaterialCode") Switch backgroundSwitch = findViewById(R.id.backgroundSwitch);
 
                 runOnUiThread(new Runnable() {

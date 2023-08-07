@@ -458,7 +458,9 @@ public class BleService {
     }
 
     private void stopKeepAlive() {
-        keepAliveProcess.interrupt();
+        if (keepAliveProcess!=null) {
+            keepAliveProcess.interrupt();
+        }
     }
 
     private void prepareRequest(RequestType type, UUID requestID, byte[] requestData, UUID responseID, byte[] expectedResponse) {
