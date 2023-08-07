@@ -1,13 +1,9 @@
 package com.example.garmingopromobile;
 
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.app.ActivityManager;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -18,7 +14,6 @@ import androidx.navigation.ui.AppBarConfiguration;
 import androidx.navigation.ui.NavigationUI;
 
 import com.example.garmingopromobile.databinding.ActivityMainBinding;
-import com.garmin.android.connectiq.ConnectIQ;
 import com.garmin.android.connectiq.IQDevice;
 import com.garmin.android.connectiq.exception.InvalidStateException;
 import com.garmin.android.connectiq.exception.ServiceUnavailableException;
@@ -31,10 +26,8 @@ import android.widget.ArrayAdapter;
 import android.widget.CompoundButton;
 import android.widget.Spinner;
 import android.widget.Switch;
-import android.widget.TextView;
 
 import java.util.ArrayList;
-import java.util.Set;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -65,79 +58,78 @@ public class MainActivity extends AppCompatActivity {
             System.out.println("Foreground Service not running");
         }
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                if (waitForService) {
+        new Thread(() -> {initializeUI(waitForService);}).start();
+    }
+
+    private void initializeUI(boolean waitForService) {
+        if (waitForService) {
+            try {
+                System.out.println("MainActivity: Waiting for service");
+                synchronized (BackgroundService.synchronizer) {
+                    BackgroundService.synchronizer.wait(5000);
+                }
+                System.out.println("MainActivity: Service started, initializing UI");
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        backgroundService = BackgroundService.getInstance();
+        System.out.println(backgroundService);
+
+        TextLog.bind(findViewById(R.id.textView), findViewById(R.id.scrollView), MainActivity.this);
+
+        Spinner goProSpinner = findViewById(R.id.gopro_spinner);
+        ArrayList<GoPro> pairedGoPros = backgroundService.getPairedGoPros();
+        ArrayAdapter<GoPro> goproAdapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_spinner_item, pairedGoPros);
+        goproAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+
+        Spinner garminSpinner = findViewById(R.id.garmin_spinner);
+        ArrayList<IQDevice> pairedGarminDevices = backgroundService.getPairedWatches();
+        ArrayAdapter<IQDevice> garminAdapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_spinner_item, pairedGarminDevices);
+        garminAdapter.setDropDownViewResource((android.R.layout.simple_spinner_dropdown_item));
+
+        @SuppressLint("UseSwitchCompatOrMaterialCode") Switch backgroundSwitch = findViewById(R.id.backgroundSwitch);
+
+
+        runOnUiThread(() -> {
+            TextLog.activateUI();
+
+            goProSpinner.setAdapter(goproAdapter);
+            goProSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+                    backgroundService.setGoPro((GoPro) adapterView.getSelectedItem());
+                }
+
+                @Override
+                public void onNothingSelected(AdapterView<?> adapterView) {
+                }
+            });
+
+            garminSpinner.setAdapter(garminAdapter);
+            garminSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
                     try {
-                        synchronized (BackgroundService.synchronizer) {
-                            BackgroundService.synchronizer.wait(5000);
-                        }
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
+                        IQDevice device = (IQDevice) adapterView.getSelectedItem();
+                        backgroundService.setWatch(device.getDeviceIdentifier(), device.getFriendlyName());
+                    } catch (InvalidStateException | ServiceUnavailableException e) {
+                        e.printStackTrace();
                     }
                 }
-                backgroundService = BackgroundService.getInstance();
-                System.out.println(backgroundService);
 
-                TextLog.bind(findViewById(R.id.textView), findViewById(R.id.scrollView), MainActivity.this);
+                @Override
+                public void onNothingSelected(AdapterView<?> adapterView) {
+                }
+            });
 
-                Spinner goProSpinner = findViewById(R.id.gopro_spinner);
-                ArrayList<GoPro> pairedGoPros = backgroundService.getPairedGoPros();
-                ArrayAdapter<GoPro> goproAdapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_spinner_item, pairedGoPros);
-                goproAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-
-                Spinner garminSpinner = findViewById(R.id.garmin_spinner);
-                ArrayList<IQDevice> pairedGarminDevices = backgroundService.getPairedWatches();
-                ArrayAdapter<IQDevice> garminAdapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_spinner_item, pairedGarminDevices);
-                garminAdapter.setDropDownViewResource((android.R.layout.simple_spinner_dropdown_item));
-
-                @SuppressLint("UseSwitchCompatOrMaterialCode") Switch backgroundSwitch = findViewById(R.id.backgroundSwitch);
-
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        TextLog.activateUI();
-
-                        goProSpinner.setAdapter(goproAdapter);
-                        goProSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                            @Override
-                            public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-                                backgroundService.setGoPro((GoPro) adapterView.getSelectedItem());
-                            }
-
-                            @Override
-                            public void onNothingSelected(AdapterView<?> adapterView) {
-                            }
-                        });
-
-                        garminSpinner.setAdapter(garminAdapter);
-                        garminSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                            @Override
-                            public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-                                try {
-                                    IQDevice device = (IQDevice) adapterView.getSelectedItem();
-                                    backgroundService.setWatch(device.getDeviceIdentifier(), device.getFriendlyName());
-                                } catch (InvalidStateException | ServiceUnavailableException e) {
-                                    e.printStackTrace();
-                                }
-                            }
-
-                            @Override
-                            public void onNothingSelected(AdapterView<?> adapterView) {
-                            }
-                        });
-
-                        backgroundSwitch.setChecked(getSharedPreferences("savedPrefs", MODE_PRIVATE).getBoolean("backgroundToggle", false));
-                        backgroundSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-                            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                                backgroundService.setBackgroundToggle(isChecked);
-                            }
-                        });
-                    }
-                });
-            }
-        }).start();
+            backgroundSwitch.setChecked(getSharedPreferences("savedPrefs", MODE_PRIVATE).getBoolean("backgroundToggle", false));
+            backgroundSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                    backgroundService.toggleBackground(isChecked);
+                }
+            });
+        });
     }
 
 
