@@ -12,6 +12,7 @@ import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
 import androidx.navigation.ui.AppBarConfiguration;
 import androidx.navigation.ui.NavigationUI;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.example.garmingopromobile.databinding.ActivityMainBinding;
 import com.garmin.android.connectiq.IQDevice;
@@ -90,6 +91,8 @@ public class MainActivity extends AppCompatActivity {
 
         @SuppressLint("UseSwitchCompatOrMaterialCode") Switch backgroundSwitch = findViewById(R.id.backgroundSwitch);
 
+        SwipeRefreshLayout swipeRefresh = findViewById(R.id.swipe_refresh);
+
 
         runOnUiThread(() -> {
             TextLog.activateUI();
@@ -127,6 +130,14 @@ public class MainActivity extends AppCompatActivity {
             backgroundSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
                 public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                     backgroundService.toggleBackground(isChecked);
+                }
+            });
+
+            swipeRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+                @Override
+                public void onRefresh() {
+//                    TODO: split initializeUI and refreshUI
+                    swipeRefresh.setRefreshing(false);
                 }
             });
         });
