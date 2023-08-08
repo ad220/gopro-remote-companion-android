@@ -181,9 +181,13 @@ public class GarminDevice extends IQDevice {
         this.linkedGoPro = linkedGoPro;
     }
 
-    public void disconnect(Context context) throws InvalidStateException {
-        connectIQ.unregisterForApplicationEvents(this, iqApp);
-        connectIQ.unregisterForDeviceEvents(this);
-        connectIQ.shutdown(context);
+    public void disconnect(Context context) {
+        try {
+            connectIQ.unregisterForApplicationEvents(this, iqApp);
+            connectIQ.unregisterForDeviceEvents(this);
+            connectIQ.shutdown(context);
+        } catch (InvalidStateException e) {
+            e.printStackTrace();
+        }
     }
 }

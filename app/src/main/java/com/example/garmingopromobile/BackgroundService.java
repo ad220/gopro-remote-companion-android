@@ -39,6 +39,8 @@ public class BackgroundService extends Service {
 
     @Override
     public void onDestroy() {
+        goPro.disconnect();
+        watch.disconnect(getApplicationContext());
         stopSelf();
         stopForeground(true);
         super.onDestroy();
@@ -101,7 +103,8 @@ public class BackgroundService extends Service {
                     ArrayList<IQDevice> pairedGarminDevices;
                     pairedGarminDevices = (ArrayList<IQDevice>) connectIQ.getKnownDevices();
                     TextLog.logInfo(pairedGarminDevices);
-                    // TODO: start connection ?
+                    // TODO: cleaner way to fix this
+
                 } catch (InvalidStateException | ServiceUnavailableException e) {
                     e.printStackTrace();
                 }
