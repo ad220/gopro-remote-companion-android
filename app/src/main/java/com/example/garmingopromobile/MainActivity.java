@@ -28,6 +28,8 @@ import android.widget.CompoundButton;
 import android.widget.Spinner;
 import android.widget.Switch;
 
+import org.w3c.dom.Text;
+
 import java.util.ArrayList;
 
 
@@ -109,8 +111,8 @@ public class MainActivity extends AppCompatActivity {
                 public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
                     try {
                         IQDevice device = (IQDevice) adapterView.getSelectedItem();
-                        backgroundService.setWatch(device.getDeviceIdentifier(), device.getFriendlyName());
-                    } catch (InvalidStateException | ServiceUnavailableException e) {
+//                        backgroundService.setWatch(device.getDeviceIdentifier(), device.getFriendlyName());
+                    } catch (Exception e) {
                         e.printStackTrace();
                     }
                 }
@@ -129,8 +131,8 @@ public class MainActivity extends AppCompatActivity {
             swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
                 @Override
                 public void onRefresh() {
+                    backgroundService.resetWatch();
                     refreshUI();
-                    swipeRefreshLayout.setRefreshing(false);
                 }
             });
             swipeRefreshLayout.setRefreshing(true);
@@ -143,7 +145,6 @@ public class MainActivity extends AppCompatActivity {
             try {
                 swipeRefreshSynchronizer.wait();
                 refreshUI();
-                swipeRefreshLayout.setRefreshing(false);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
@@ -165,6 +166,8 @@ public class MainActivity extends AppCompatActivity {
             garminSpinner.setAdapter(garminAdapter);
             backgroundSwitch.setChecked(getSharedPreferences("savedPrefs", MODE_PRIVATE).getBoolean("backgroundToggle", false));
         });
+
+        swipeRefreshLayout.setRefreshing(false);
     }
 
 

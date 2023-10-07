@@ -47,6 +47,8 @@ dependencies {
 //        implementation(project("org.jetbrains.kotlin:kotlin-sdklib-jdk7"))
 //        implementation(project("org.jetbrains.kotlin:kotlin-sdklib-jdk8"))
 //    }
+
+//    implementation("com.garmin.connectiq:ciq-companion-app-sdk:2.0.3@aar")
     implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
     implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
 

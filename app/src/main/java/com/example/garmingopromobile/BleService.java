@@ -145,21 +145,24 @@ public class BleService {
     }
 
 //    TODO: tout passer en private
-    GoPro gopro;
-    Context appContext;
-    BluetoothDevice bluetoothDevice;
-    BluetoothLeService bleService;
-    BluetoothGatt goproGatt;
+    private GoPro gopro;
+    private Context appContext;
+    private BluetoothDevice bluetoothDevice;
+    private BluetoothLeService bleService;
+    private BluetoothGatt goproGatt;
 
     private Thread keepAliveProcess;
 
 
-    ArrayList<RequestType> requestTypeQueue;
-    ArrayList<UUID> requestUuidQueue;
-    ArrayList<byte[]> requestDataQueue;
-    ArrayList<UUID> responseUuidQueue;
-    ArrayList<byte[]> responseExpectedQueue;
-    boolean pendingRequest;
+    private ArrayList<RequestType> requestTypeQueue;
+    private ArrayList<UUID> requestUuidQueue;
+    private ArrayList<byte[]> requestDataQueue;
+    private ArrayList<UUID> responseUuidQueue;
+    private ArrayList<byte[]> responseExpectedQueue;
+    private boolean requestPending;
+    private boolean requestAnswered;
+    private int requestCounter;
+    public static final Object requestSync = new Object();
 
     public BleService(BluetoothDevice bluetoothDevice, Context appContext, GoPro gopro) {
         this.bluetoothDevice = bluetoothDevice;
@@ -182,14 +185,15 @@ public class BleService {
     byte[] lastStatus = new byte[0];
 
     public boolean disconnect() {
-        goproGatt.close();
         stopKeepAlive();
 
+        requestPending = false;
         requestTypeQueue.clear();
         requestUuidQueue.clear();
         requestDataQueue.clear();
         responseUuidQueue.clear();
         responseExpectedQueue.clear();
+        goproGatt.close();
         return true;
     }
 
@@ -202,10 +206,7 @@ public class BleService {
         TextLog.logInfo(bluetoothDevice);
         if (bluetoothDevice != null) {
             if (goproGatt != null) {
-                try {
-                    goproGatt.close();
-                } catch (Exception e) {
-                }
+                disconnect();
             }
 //            if (ActivityCompat.checkSelfPermission(appContext, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
 //                TextLog.logInfo("perm not granted");
@@ -227,10 +228,10 @@ public class BleService {
                         TextLog.logInfo("GoPro ble connected");
                         gatt.discoverServices();
                     } else {
-                        gopro.disconnect();
                         gopro.getLinkedWatch().send(GarminDevice.Communication.COM_CONNECT, 1);
                         TextLog.logInfo("GoPro ble disconnected");
                         ConnectedAndReady = false;
+                        disconnect();
                     }
                     super.onConnectionStateChange(gatt, status, newState);
                 }
@@ -238,6 +239,8 @@ public class BleService {
                 @Override
                 public void onServicesDiscovered(BluetoothGatt gatt, int status) {
                     super.onServicesDiscovered(gatt, status);
+                    startKeepAlive();
+
                     TextLog.logInfo("Services discovered");
                     for (BluetoothGattService service : gatt.getServices()) {
                         for (BluetoothGattCharacteristic characteristic: service.getCharacteristics()) {
@@ -254,206 +257,94 @@ public class BleService {
 //                    Register for status change : encoding
                     byte[] registerStatus = new byte[] {(byte) 0x06, QueryID.REGISTER_STATUS.getValue(), StatusID.ENCODING.getValue()};
                     prepareRequest(RequestType.CHARACTERISTIC, GoPro.QUERY_REQUEST, registerStatus, GoPro.QUERY_RESPONSE, null);
-
-                    startKeepAlive();
                 }
 
                 @Override
                 public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-//                    super.onCharacteristicWrite(gatt, characteristic, status);
-//                    requestDataQueue.remove(0);
-//                    requestUuidQueue.remove(0);
-////                    responseExpectedQueue.remove(0);
-//                    responseUuidQueue.remove(0);
-//
-//                    if (requestDataQueue.isEmpty()) pendingRequest = false;
-//                    else writeCharacteristic();
-//                    synchronized (writeLock) {
-//                        waitingWrite = false;
-//                        writeLock.notifyAll();
-//                    }
+                    TextLog.logInfo("Characteristic written");
+                    super.onCharacteristicWrite(gatt, characteristic, status);
+                    synchronized (requestSync) {
+                        requestAnswered = true;
+                        requestSync.notify();
+                    }
+                    popRequest();
+                    if (requestTypeQueue.isEmpty()) requestPending = false;
+                    else processRequest();
                 }
 
                 @Override
                 public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
                     TextLog.logInfo("Descriptor written");
                     super.onDescriptorWrite(gatt, descriptor, status);
+                    synchronized (requestSync) {
+                        requestAnswered = true;
+                        requestSync.notify();
+                    }
                     popRequest();
-                    if (requestTypeQueue.isEmpty()) pendingRequest = false;
+                    if (requestTypeQueue.isEmpty()) requestPending = false;
                     else processRequest();
                 }
 
                 @Override
                 public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
                     TextLog.logInfo("Received response from camera, uuid="+characteristic.getUuid());
+                    showBytes(characteristic.getValue());
                     super.onCharacteristicChanged(gatt, characteristic);
 
                     if (!requestUuidQueue.isEmpty() && characteristic.getUuid().equals(responseUuidQueue.get(0))) {
-//                        goproGatt.setCharacteristicNotification(characteristic, false);
-//                        if (characteristic.getValue().equals(responseExpectedQueue.get(0))) {
-//                            TextLog.logInfo("Good camera reponse");
-//                        } else {
-//                            TextLog.logInfo("Bad camera response error : expected "+responseExpectedQueue.get(0)+", but got "+characteristic.getValue());
-//                        }
-                        popRequest();
-                    }
-
-                    else if (characteristic.getUuid().equals(GoPro.QUERY_RESPONSE)) {
-                        byte[] response = characteristic.getValue();
-                        showBytes(response);
-
-                        if ((response[0] ^ (byte) 0xe0 | (byte) 0x1f) != (byte) 0xff) {
-                            TextLog.logInfo("Message too long");
-                            return;
+                        if (characteristic.getUuid().equals(GoPro.QUERY_RESPONSE)) {
+                            decodeQuery(characteristic.getValue());
                         }
-                        if (QueryID.getAllValues().contains(response[1])) decodeQuery(response);
-                        else TextLog.logInfo("Unexpected query ID");
+                    }
+                    else if (characteristic.getUuid().equals(GoPro.QUERY_RESPONSE)) {
+                        decodeQuery(characteristic.getValue());
                     }
 
-                    if (requestTypeQueue.isEmpty()) pendingRequest = false;
-                    else processRequest();
-//                    synchronized (ChangeLock) {
-//                        waitingChange = false;
-//                        ChangeLock.notifyAll();
-//                    }
-//
-//
-//                    byte[] newStatus = characteristic.getValue();
-//                    Log.d("tag", "onCharacteristicChanged " + Arrays.toString(newStatus));
-//
-//
-//                    if (newStatus.length > 5 && newStatus[1] == -109) {
-//                        if (newStatus[3] == 0xA) {
-//                            Log.d("log", "Shutter : " + newStatus[5]);
-//                            if (newStatus[5] == 1) {
-//                                hasShutter = true;
-//                                if (lastCamMode == 0)
-//                                    linkedWatch.sendMessage(GoProRemoteIQ.MessageType.Status, "Recording", "");
-//                            } else {
-//                                if (lastCamMode == 0)
-//                                    linkedWatch.sendMessage(GoProRemoteIQ.MessageType.Status, "Standby", "");
-//                            }
-//                        }
-//                        if (newStatus[3] == 0x26 || (newStatus.length > 6 && newStatus[6] == 0x26)) {
-//                            byte picNum = newStatus[newStatus.length - 1];
-//                            Log.d("log", "Pictures num : " + picNum);
-//                            if (lastCamMode == 1)
-//                                linkedWatch.sendMessage(GoProRemoteIQ.MessageType.Status, "Pictures", Byte.toString(picNum));
-//                        }
-//                        if (newStatus[3] == 43) {
-//                            if (newStatus[5] >= 0) {
-//                                Log.d("log", "Set last cam status (" + newStatus[5] + ")");
-//                                lastCamMode = newStatus[5];
-//                            }
-//                        }
-//                        if (newStatus[3] == 70) {
-//                            if (newStatus[5] >= 0) {
-//                                if (newStatus[5] != lasBatteryPercent) {
-//                                    Log.d("log", "Set battery percent (" + newStatus[5] + ")");
-//                                    lasBatteryPercent = newStatus[5];
-//                                    linkedWatch.sendMessage(GoProRemoteIQ.MessageType.Battery, Byte.toString(lasBatteryPercent), "");
-//                                }
-//                            }
-//                        }
-//                        return;
-//                    }
-//                    lastStatus = newStatus;
-//                    //TextLog.logInfo("Status notified : " + Arrays.toString(lastStatus));
-//                    synchronized (readyLock) {
-//                        waitForReady = false;
-//                        readyLock.notifyAll();
-//                    }
-//                    //record();
                 }
-
-
             });
-
-            //goproGatt.connect();
-//            if (WaitConnectedAndReady()) {
-//                MonitorStatus();
-//                CurrentMode();
-//                CurrentBattery();
-//                return true;
-//            }
 
         }
         return  false;
-
-
-
-
-
-
-
-
-        // Code to manage Service lifecycle.
-
-//        ServiceConnection mServiceConnection = new ServiceConnection() {
-//
-//            @Override
-//            public void onServiceConnected(ComponentName componentName, IBinder service) {
-//                bleService = ((BluetoothLeService.LocalBinder) service).getService();
-//                if (!bleService.initialize()) {
-////                    log unable to initialize bluetooth
-//                    TextLog.logInfo("unable to initialize bluetooth");
-//                }
-//
-//                ArrayList<Object> connectionSuccessMessage = new ArrayList<>();
-//                connectionSuccessMessage.add(GarminDevice.Communication.COM_CONNECT);
-//                connectionSuccessMessage.add(0);
-//                try {
-//                    linkedWatch.send(connectionSuccessMessage);
-//                } catch (Exception e) {
-//                    e.printStackTrace();
-//                }
-//
-//                // Automatically connects to the device upon successful start-up initialization.
-//                bleService.connect(bluetoothDevice.getAddress());
-//            }
-//
-//            @Override
-//            public void onServiceDisconnected(ComponentName componentName) {
-//                bleService = null;
-//            }
-//        };
-//
-//        Intent gattServiceIntent = new Intent(appContext, BluetoothLeService.class);
-//        appContext.bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
-//        TextLog.logInfo("test");
     }
 
     private void decodeQuery(byte[] response) {
-        switch (Objects.requireNonNull(QueryID.get(response[1]))) {
-            case REGISTER_SETTINGS, NOTIF_SETTINGS -> {
-                byte[] updatedSettings = Arrays.copyOfRange(response, 3, response.length);
-                gopro.setSettings(updatedSettings);
-            }
-            case REGISTER_STATUS, NOTIF_STATUS -> {
-                byte[] updatedStatus = Arrays.copyOfRange(response, 3, response.length);
-                gopro.setStatus(updatedStatus);
-            }
-            default -> TextLog.logInfo("Unexpected query ID");
+        if ((response[0] ^ (byte) 0xe0 | (byte) 0x1f) != (byte) 0xff) {
+            TextLog.logInfo("Message too long");
+            return;
         }
+
+        if (QueryID.getAllValues().contains(response[1])) {
+            switch (Objects.requireNonNull(QueryID.get(response[1]))) {
+                case REGISTER_SETTINGS, NOTIF_SETTINGS -> {
+                    byte[] updatedSettings = Arrays.copyOfRange(response, 3, response.length);
+                    gopro.setSettings(updatedSettings);
+                }
+                case REGISTER_STATUS, NOTIF_STATUS, GET_STATUS -> {
+                    byte[] updatedStatus = Arrays.copyOfRange(response, 3, response.length);
+                    gopro.setStatus(updatedStatus);
+                }
+                default -> TextLog.logInfo("Unexpected query ID");
+            }
+        }
+        else TextLog.logInfo("Unexpected query ID");
     }
 
     private void startKeepAlive() {
-        keepAliveProcess = new Thread() {
-            @Override
-            public void run() {
-                byte[] request = new byte[]{(byte) 0x03, (byte) 0x5b, (byte) 0x01, (byte) 0x42};
-                byte [] response = new byte[]{(byte) 0x02, (byte) 0x5b, (byte) 0x00};
-                while (true) {
-                    try {
-                        sleep(5000);
-                    } catch (InterruptedException e) {
-                        TextLog.logInfo("Keep alive thread interrupted");
-                        break;
-                    }
-                    prepareRequest(RequestType.CHARACTERISTIC, GoPro.SETTINGS_REQUEST, request, GoPro.SETTINGS_RESPONSE, response);
+        byte[] request = new byte[]{(byte) 0x03, (byte) 0x5b, (byte) 0x01, (byte) 0x42};
+        byte [] response = new byte[]{(byte) 0x02, (byte) 0x5b, (byte) 0x00};
+        prepareRequest(RequestType.CHARACTERISTIC, GoPro.SETTINGS_REQUEST, request, GoPro.SETTINGS_RESPONSE, response);
+
+        keepAliveProcess = new Thread(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    TextLog.logInfo("Keep alive thread interrupted");
+                    break;
                 }
+                prepareRequest(RequestType.CHARACTERISTIC, GoPro.SETTINGS_REQUEST, request, GoPro.SETTINGS_RESPONSE, response);
             }
-        };
+        });
         keepAliveProcess.start();
     }
 
@@ -472,7 +363,7 @@ public class BleService {
         responseExpectedQueue.add(expectedResponse);
 
         System.out.print("Submit request : "+type);
-        if (!pendingRequest) {
+        if (!requestPending) {
             processRequest();
             TextLog.logInfo();
         }
@@ -483,21 +374,68 @@ public class BleService {
         prepareRequest(RequestType.CHARACTERISTIC, requestID, requestData, responseID, null);
     }
 
-    public void processRequest() {
-        pendingRequest = true;
+    private void processRequest() {
+        requestPending = true;
 
-        switch (requestTypeQueue.get(0)) {
-            case CHARACTERISTIC:
+        new Thread(() -> {
+            switch (requestTypeQueue.get(0)) {
+                case CHARACTERISTIC:
 //                Write Characteristic
-                BluetoothGattCharacteristic characteristic = goproGatt.getService(GOPRO_SERVICE).getCharacteristic(requestUuidQueue.get(0));
-                characteristic.setValue(requestDataQueue.get(0));
-                goproGatt.writeCharacteristic(characteristic);
-                break;
-            case TOGGLE_DESCRIPTOR_NOTIFICATIONS:
+                    BluetoothGattCharacteristic characteristic = goproGatt.getService(GOPRO_SERVICE).getCharacteristic(requestUuidQueue.get(0));
+                    characteristic.setValue(requestDataQueue.get(0));
+                    writeCharacteristicLoop(goproGatt, characteristic);
+                    break;
+                case TOGGLE_DESCRIPTOR_NOTIFICATIONS:
 //                Write Descriptor
-                BluetoothGattDescriptor descriptor = goproGatt.getService(GOPRO_SERVICE).getCharacteristic(requestUuidQueue.get(0)).getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
-                descriptor.setValue(requestDataQueue.get(0));
-                goproGatt.writeDescriptor(descriptor);
+                    BluetoothGattDescriptor descriptor = goproGatt.getService(GOPRO_SERVICE).getCharacteristic(requestUuidQueue.get(0)).getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
+                    descriptor.setValue(requestDataQueue.get(0));
+                    writeDescriptorLoop(goproGatt, descriptor);
+            }
+        }).start();
+    }
+
+    private void writeCharacteristicLoop(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+        requestAnswered = false;
+        requestCounter = 0;
+        do {
+            gatt.writeCharacteristic(characteristic);
+            synchronized (requestSync) {
+                try {
+                    System.out.println("trying again");
+                    requestSync.wait(500);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            };
+        } while (!requestAnswered && ++requestCounter<5);
+        if (requestCounter==5) {
+            disconnect();
+            try {
+                Thread.sleep(1000);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            connect();
+        }
+    }
+
+    private void writeDescriptorLoop(BluetoothGatt gatt, BluetoothGattDescriptor descriptor) {
+        requestAnswered = false;
+        requestCounter = 10;
+        do {
+            gatt.writeDescriptor(descriptor);
+            synchronized (requestSync) {
+                try {
+                    requestSync.wait(500);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            };
+        } while (!requestAnswered || requestCounter--==0);
+        if (requestCounter==0) {
+            gopro.disconnect();
+            disconnect();
+            connect();
         }
     }
 
@@ -514,6 +452,6 @@ public class BleService {
         for (byte b: data) {
             System.out.printf("%02x:", b);
         }
-        TextLog.logInfo();
+        System.out.println();
     }
 }

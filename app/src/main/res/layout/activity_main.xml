@@ -33,77 +33,84 @@
 
         </com.google.android.material.appbar.AppBarLayout>
 
-        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-            android:id="@+id/swipe_refresh"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
-            <LinearLayout
+            <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+                android:id="@+id/swipe_refresh"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:clickable="true"
-                android:orientation="vertical">
+                android:layout_height="180dp">
 
-                <Spinner
-                    android:id="@+id/garmin_spinner"
-                    android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginHorizontal="10dp"
-                    android:layout_marginVertical="5dp"
-                    android:paddingStart="15dp"
-                    android:paddingEnd="15dp"
-                    android:popupBackground="#2B2B2B" />
-
-                <Spinner
-                    android:id="@+id/gopro_spinner"
-                    android:layout_width="match_parent"
-                    android:layout_height="50dp"
-                    android:layout_marginHorizontal="10dp"
-                    android:layout_marginVertical="5dp"
-                    android:paddingStart="15dp"
-                    android:paddingEnd="15dp"
-                    android:popupBackground="#2B2B2B" />
-
-                <Switch
-                    android:id="@+id/backgroundSwitch"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginHorizontal="10dp"
-                    android:layout_marginVertical="5dp"
-                    android:paddingVertical="13dp"
-                    android:paddingStart="15dp"
-                    android:text="Run background service"
-                    android:textSize="16sp" />
+                    android:clickable="true"
+                    android:orientation="vertical">
 
-                <ScrollView
-                    android:id="@+id/scrollView"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:layout_gravity="bottom"
-                    android:layout_marginHorizontal="10dp"
-                    android:layout_marginTop="5dp"
-                    android:layout_marginBottom="10dp"
-                    android:background="#2B2B2B"
-                    android:fillViewport="true">
+                    <Spinner
+                        android:id="@+id/garmin_spinner"
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:layout_marginHorizontal="10dp"
+                        android:layout_marginVertical="5dp"
+                        android:paddingStart="15dp"
+                        android:paddingEnd="15dp"
+                        android:popupBackground="#2B2B2B" />
 
-                    <RelativeLayout
+                    <Spinner
+                        android:id="@+id/gopro_spinner"
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:layout_marginHorizontal="10dp"
+                        android:layout_marginVertical="5dp"
+                        android:paddingStart="15dp"
+                        android:paddingEnd="15dp"
+                        android:popupBackground="#2B2B2B" />
+
+                    <Switch
+                        android:id="@+id/backgroundSwitch"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:gravity="bottom">
+                        android:layout_marginHorizontal="10dp"
+                        android:layout_marginVertical="5dp"
+                        android:paddingVertical="13dp"
+                        android:paddingStart="15dp"
+                        android:text="Run background service"
+                        android:textSize="16sp" />
 
-                        <TextView
-                            android:id="@+id/textView"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:fontFamily="monospace"
-                            android:padding="15dp"
-                            android:text="log stuff"
-                            android:textColor="@android:color/secondary_text_dark"
-                            android:textSize="8sp" />
-                    </RelativeLayout>
-                </ScrollView>
-            </LinearLayout>
-        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+                </LinearLayout>
+            </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+        </LinearLayout>
+
+        <ScrollView
+            android:id="@+id/scrollView"
+            android:layout_width="match_parent"
+            android:layout_height="fill_parent"
+            android:layout_gravity="bottom"
+            android:layout_marginHorizontal="10dp"
+            android:layout_marginTop="5dp"
+            android:layout_marginBottom="10dp"
+            android:background="#2B2B2B"
+            android:fillViewport="true">
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="bottom">
+
+                <TextView
+                    android:id="@+id/textView"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:padding="15dp"
+                    android:text="log stuff"
+                    android:textColor="@android:color/secondary_text_dark"
+                    android:textSize="8sp" />
+            </RelativeLayout>
+        </ScrollView>
 
     </LinearLayout>
 

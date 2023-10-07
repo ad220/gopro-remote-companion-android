@@ -10,6 +10,7 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 
@@ -82,7 +83,7 @@ public class BackgroundService extends Service {
                     .setContentText("Garmin GoPro Mobile is running in the background")
                     .setContentTitle("Background service enabled")
                     .setSmallIcon(R.drawable.gopro_alpha_mini)
-                    .addAction(R.drawable.ic_launcher_background , "Stop service", stopPendingIntent);
+                    .addAction(R.drawable.icon_background, "Stop service", stopPendingIntent);
 
             startForeground(1001, notification.build());
         } else {
@@ -94,46 +95,47 @@ public class BackgroundService extends Service {
     private void initializeDevices() {
         ArrayList<GoPro> pairedGoPros = getPairedGoPros();
 
-        Looper.prepare();
-        connectIQ = ConnectIQ.getInstance(BackgroundService.this, ConnectIQ.IQConnectType.WIRELESS);
-        connectIQ.initialize(getApplicationContext(), true, new ConnectIQ.ConnectIQListener() {
-            @Override
-            public void onSdkReady() {
-                try {
-                    ArrayList<IQDevice> pairedGarminDevices;
-                    pairedGarminDevices = (ArrayList<IQDevice>) connectIQ.getKnownDevices();
-                    TextLog.logInfo(pairedGarminDevices);
-                    // TODO: cleaner way to fix this
+        new Handler(Looper.getMainLooper()).post(() -> {
+            connectIQ = ConnectIQ.getInstance(BackgroundService.this, ConnectIQ.IQConnectType.TETHERED);
+            connectIQ.initialize(getApplicationContext(), true, new ConnectIQ.ConnectIQListener() {
+                @Override
+                public void onSdkReady() {
+                    try {
+                        ArrayList<IQDevice> pairedGarminDevices;
+                        pairedGarminDevices = (ArrayList<IQDevice>) connectIQ.getKnownDevices();
+                        TextLog.logInfo(pairedGarminDevices);
+                        // TODO: cleaner way to fix this
 
-                } catch (InvalidStateException | ServiceUnavailableException e) {
-                    e.printStackTrace();
+                    } catch (InvalidStateException | ServiceUnavailableException e) {
+                        e.printStackTrace();
+                    }
                 }
+
+                @Override
+                public void onInitializeError(ConnectIQ.IQSdkErrorStatus iqSdkErrorStatus) {
+                    TextLog.logInfo(iqSdkErrorStatus);
+                }
+
+                @Override
+                public void onSdkShutDown() {
+                    TextLog.logInfo("iq sdk shutdown");
+                }
+            });
+
+            try {
+                setWatch(pref.getLong("garminID", 0), pref.getString("garminName", ""));
+                setGoPro(searchGoProAddress(pairedGoPros, pref.getString("gopro", "")));
+            } catch (Exception e) {
+                e.printStackTrace();
             }
 
-            @Override
-            public void onInitializeError(ConnectIQ.IQSdkErrorStatus iqSdkErrorStatus) {
-                TextLog.logInfo(iqSdkErrorStatus);
-            }
 
-            @Override
-            public void onSdkShutDown() {
-                TextLog.logInfo("iq sdk shutdown");
+            synchronized (BackgroundService.synchronizer) {
+                instance = BackgroundService.this;
+                System.out.println("BackgroundService : getInstance() = "+getInstance());
+                BackgroundService.synchronizer.notify();
             }
         });
-
-        try {
-            setWatch(pref.getLong("garminID", 0), pref.getString("garminName", ""));
-            setGoPro(searchGoProAddress(pairedGoPros, pref.getString("gopro", "")));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-
-        synchronized (BackgroundService.synchronizer) {
-            instance = BackgroundService.this;
-            System.out.println("BackgroundService : getInstance() = "+getInstance());
-            BackgroundService.synchronizer.notify();
-        }
     }
 
 
@@ -203,6 +205,16 @@ public class BackgroundService extends Service {
         editor.putLong("garminID", watch.getDeviceIdentifier());
         editor.putString("garminName", watch.getFriendlyName());
         editor.apply();
+    }
+
+    public void resetWatch() {
+        try {
+            TextLog.logInfo(this.watch.getStatus());
+            TextLog.logInfo(connectIQ.getConnectedDevices());
+//            setWatch(this.watch.getDeviceIdentifier(), this.watch.getFriendlyName());
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public ArrayList<IQDevice> getPairedWatches() {

@@ -127,8 +127,7 @@ public class GoPro {
 
     public void pressShutter() {
         // Send the start recording request to the GoPro
-        byte[] request = new byte[]{(byte) 0x03, (byte) 0x01, (byte) 0x01, (byte) (recording ? 0x00 : 0x01)};
-        recording = !recording;
+        byte[] request = new byte[]{(byte) 0x03, (byte) 0x01, (byte) 0x01, (byte) (isRecording() ? 0x00 : 0x01)};
         bleService.prepareRequest(COMMAND_REQUEST, request, COMMAND_RESPONSE);
     }
 
@@ -354,14 +353,14 @@ public class GoPro {
             case ENCODING:
                 this.states.put(States.RECORDING, (int) value[0]);
                 if (isRecording()) bleService.prepareRequest(QUERY_REQUEST, new byte[]{(byte) 0x02, BleService.QueryID.GET_STATUS.getValue(), BleService.StatusID.PROGRESS.getValue()}, QUERY_RESPONSE);
+                break;
             case PROGRESS:
                 int progress = 0;
                 for (byte b : value) {
                     progress = (progress << 8) + b;
                 }
-
-                TextLog.logInfo("Progress received : "+progress+", length = "+value.length);
-                linkedWatch.send(GarminDevice.Communication.COM_PROGRESS, (Integer) progress);
+                linkedWatch.send(GarminDevice.Communication.COM_PROGRESS, progress);
+                break;
             default:
                 TextLog.logInfo("Unexpected status ID");
         }

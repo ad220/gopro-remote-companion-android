@@ -30,46 +30,46 @@ public class GarminDevice extends IQDevice {
 
     public GarminDevice(ConnectIQ connectIQ, long deviceId, String name) throws InvalidStateException, ServiceUnavailableException {
         super(deviceId, name);
+        TextLog.logInfo("New watch object created");
         this.connectIQ = connectIQ;
 
-        connectIQ.registerForDeviceEvents(this, new ConnectIQ.IQDeviceEventListener() {
-            @Override
-            public void onDeviceStatusChanged(IQDevice device, IQDevice.IQDeviceStatus newStatus) {
-                switch (newStatus) {
-                    case CONNECTED:
-                        TextLog.logInfo("Device connected");
+        connectIQ.setAdbPort(7381);
+
+        connectIQ.registerForDeviceEvents(this, (device, newStatus) -> {
+            switch (newStatus) {
+                case CONNECTED -> {
+                    TextLog.logInfo("Device connected");
+                    try {
+                        registerForMessages();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+                case NOT_CONNECTED -> {
+                    TextLog.logInfo("Device not connected");
+                    if (iqApp != null) {
                         try {
-                            registerForMessages();
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                        break;
-                    case NOT_CONNECTED:
-                        TextLog.logInfo("Device not connected");
-                        if (iqApp != null) {
-                            try {
-                                connectIQ.unregisterForApplicationEvents(GarminDevice.this, iqApp);
-                            } catch (InvalidStateException e) {
-                                e.printStackTrace();
-                            }
-                        }
-                        break;
-                    case NOT_PAIRED:
-                        TextLog.logInfo("Device not paired");
-                        try {
-                            connectIQ.unregisterForDeviceEvents(GarminDevice.this);
+                            connectIQ.unregisterForApplicationEvents(GarminDevice.this, iqApp);
                         } catch (InvalidStateException e) {
                             e.printStackTrace();
                         }
-                        break;
-                    case UNKNOWN:
-                        TextLog.logInfo("Device unknown");
-                        try {
-                            connectIQ.unregisterForDeviceEvents(GarminDevice.this);
-                        } catch (InvalidStateException e) {
-                            e.printStackTrace();
-                        }
-                        break;
+                    }
+                }
+                case NOT_PAIRED -> {
+                    TextLog.logInfo("Device not paired");
+                    try {
+                        connectIQ.unregisterForDeviceEvents(GarminDevice.this);
+                    } catch (InvalidStateException e) {
+                        e.printStackTrace();
+                    }
+                }
+                case UNKNOWN -> {
+                    TextLog.logInfo("Device unknown");
+                    try {
+                        connectIQ.unregisterForDeviceEvents(GarminDevice.this);
+                    } catch (InvalidStateException e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         });
@@ -98,7 +98,6 @@ public class GarminDevice extends IQDevice {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-
             }
 
             @Override
