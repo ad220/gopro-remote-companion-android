@@ -53,4 +53,8 @@ public class TextLog {
     static public void deactivateUI() {
         logToUI = false;
     }
+
+    static public boolean isUIActive() {
+        return logToUI;
+    }
 }

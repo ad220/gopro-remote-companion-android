@@ -50,6 +50,7 @@ public class BackgroundService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         TextLog.deactivateUI();
+        ServiceManager.setInstance(this);
         pref = getApplicationContext().getSharedPreferences("savedPrefs", MODE_PRIVATE);
         System.out.println("Service started");
 

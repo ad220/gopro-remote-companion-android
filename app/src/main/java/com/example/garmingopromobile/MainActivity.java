@@ -2,6 +2,7 @@ package com.example.garmingopromobile;
 
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
+import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
@@ -71,6 +72,12 @@ public class MainActivity extends AppCompatActivity {
         new Thread(() -> {initializeUI(waitForService);}).start();
     }
 
+    @Override
+    protected void onDestroy() {
+        TextLog.deactivateUI();
+        super.onDestroy();
+    }
+
     private void initializeUI(boolean waitForService) {
         if (waitForService) {
             try {
@@ -92,6 +99,8 @@ public class MainActivity extends AppCompatActivity {
         garminSpinner = findViewById(R.id.garmin_spinner);
         backgroundSwitch = findViewById(R.id.backgroundSwitch);
         swipeRefreshLayout = findViewById(R.id.swipe_refresh);
+
+        ServiceManager.setSwitch(backgroundSwitch);
 
 
         runOnUiThread(() -> {
@@ -166,7 +175,6 @@ public class MainActivity extends AppCompatActivity {
             garminSpinner.setAdapter(garminAdapter);
             backgroundSwitch.setChecked(getSharedPreferences("savedPrefs", MODE_PRIVATE).getBoolean("backgroundToggle", false));
         });
-
         swipeRefreshLayout.setRefreshing(false);
     }
 

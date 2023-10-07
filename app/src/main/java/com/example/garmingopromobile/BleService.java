@@ -148,7 +148,6 @@ public class BleService {
     private GoPro gopro;
     private Context appContext;
     private BluetoothDevice bluetoothDevice;
-    private BluetoothLeService bleService;
     private BluetoothGatt goproGatt;
 
     private Thread keepAliveProcess;
