@@ -20,6 +20,7 @@ import com.garmin.android.connectiq.IQDevice;
 import com.garmin.android.connectiq.exception.InvalidStateException;
 import com.garmin.android.connectiq.exception.ServiceUnavailableException;
 
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -35,6 +36,7 @@ import java.util.ArrayList;
 
 
 public class MainActivity extends AppCompatActivity {
+    private static final String TAG = "MainActivity";
     private AppBarConfiguration appBarConfiguration;
     private BackgroundService backgroundService;
 
@@ -66,7 +68,7 @@ public class MainActivity extends AppCompatActivity {
             Intent serviceIntent = new Intent(this, BackgroundService.class);
             if (getSharedPreferences("savedPrefs", MODE_PRIVATE).getBoolean("backgroundToggle", false)) startForegroundService(serviceIntent);
             else startService(serviceIntent);
-            System.out.println("Foreground Service not running");
+            Log.v(TAG, "MainActivity: Foreground Service not running");
         }
 
         new Thread(() -> {initializeUI(waitForService);}).start();
@@ -81,11 +83,11 @@ public class MainActivity extends AppCompatActivity {
     private void initializeUI(boolean waitForService) {
         if (waitForService) {
             try {
-                System.out.println("MainActivity: Waiting for service");
+                Log.v(TAG, "Waiting for service");
                 synchronized (BackgroundService.synchronizer) {
                     BackgroundService.synchronizer.wait(5000);
                 }
-                System.out.println("MainActivity: Service started, initializing UI");
+                Log.v(TAG, "Service started, initializing UI");
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -120,7 +122,7 @@ public class MainActivity extends AppCompatActivity {
                 public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
                     try {
                         IQDevice device = (IQDevice) adapterView.getSelectedItem();
-//                        backgroundService.setWatch(device.getDeviceIdentifier(), device.getFriendlyName());
+                        backgroundService.setWatch(device.getDeviceIdentifier(), device.getFriendlyName());
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -140,7 +142,6 @@ public class MainActivity extends AppCompatActivity {
             swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
                 @Override
                 public void onRefresh() {
-                    backgroundService.resetWatch();
                     refreshUI();
                 }
             });

@@ -106,7 +106,7 @@
                     android:layout_height="wrap_content"
                     android:fontFamily="monospace"
                     android:padding="15dp"
-                    android:text="log stuff"
+                    android:text="===========================================================\n             Garmin GoPro Remote end-user logs             \n==========================================================="
                     android:textColor="@android:color/secondary_text_dark"
                     android:textSize="8sp" />
             </RelativeLayout>

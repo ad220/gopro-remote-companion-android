@@ -4,9 +4,11 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.util.Log;
 import android.widget.Switch;
 
 public class ServiceManager extends BroadcastReceiver {
+    private static final String TAG = "ServiceManager";
 
     public static final String ACTION_SERVICE_STOP = "garmingopromobile.servicemanager.SERVICE_STOP";
 
@@ -30,7 +32,7 @@ public class ServiceManager extends BroadcastReceiver {
                     instance.toggleBackground(false);
                     backgroundSwitch.setChecked(false);
                 } else {
-                    System.out.println("ServiceManager: Stopping service");
+                    Log.v(TAG, "ServiceManager: Stopping service");
                     Intent serviceIntent = new Intent(context, BackgroundService.class);
                     context.stopService(serviceIntent);
                 }
@@ -42,7 +44,7 @@ public class ServiceManager extends BroadcastReceiver {
                     context.startForegroundService(serviceIntent2);
                 }
             }
-            default -> System.out.println("ServiceManager: Unknown action");
+            default -> Log.e(TAG, "ServiceManager: Unknown action");
         }
     }
 }

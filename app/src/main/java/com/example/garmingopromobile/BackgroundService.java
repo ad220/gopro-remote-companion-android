@@ -13,6 +13,7 @@ import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.util.Log;
 
 import androidx.annotation.Nullable;
 
@@ -25,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Set;
 
 public class BackgroundService extends Service {
+    private static final String TAG = "BackgroundService";
     public static final Object synchronizer = new Object();
     private static BackgroundService instance;
     private SharedPreferences pref;
@@ -35,7 +37,7 @@ public class BackgroundService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        System.out.println("Service created");
+        Log.v(TAG, "Service created");
     }
 
     @Override
@@ -52,7 +54,7 @@ public class BackgroundService extends Service {
         TextLog.deactivateUI();
         ServiceManager.setInstance(this);
         pref = getApplicationContext().getSharedPreferences("savedPrefs", MODE_PRIVATE);
-        System.out.println("Service started");
+        Log.v(TAG, "Service started");
 
         new Thread(this::initializeDevices).start();
 
@@ -97,14 +99,14 @@ public class BackgroundService extends Service {
         ArrayList<GoPro> pairedGoPros = getPairedGoPros();
 
         new Handler(Looper.getMainLooper()).post(() -> {
-            connectIQ = ConnectIQ.getInstance(BackgroundService.this, ConnectIQ.IQConnectType.TETHERED);
+            connectIQ = ConnectIQ.getInstance(BackgroundService.this, ConnectIQ.IQConnectType.WIRELESS);
             connectIQ.initialize(getApplicationContext(), true, new ConnectIQ.ConnectIQListener() {
                 @Override
                 public void onSdkReady() {
                     try {
                         ArrayList<IQDevice> pairedGarminDevices;
                         pairedGarminDevices = (ArrayList<IQDevice>) connectIQ.getKnownDevices();
-                        TextLog.logInfo(pairedGarminDevices);
+                        Log.v(TAG, pairedGarminDevices.toString());
                         // TODO: cleaner way to fix this
 
                     } catch (InvalidStateException | ServiceUnavailableException e) {
@@ -114,12 +116,12 @@ public class BackgroundService extends Service {
 
                 @Override
                 public void onInitializeError(ConnectIQ.IQSdkErrorStatus iqSdkErrorStatus) {
-                    TextLog.logInfo(iqSdkErrorStatus);
+                    TextLog.logWarn("Garmin SDK failed to initialize : "+iqSdkErrorStatus);
                 }
 
                 @Override
                 public void onSdkShutDown() {
-                    TextLog.logInfo("iq sdk shutdown");
+                    TextLog.logWarn("Garmin SDK shut down");
                 }
             });
 
@@ -133,7 +135,6 @@ public class BackgroundService extends Service {
 
             synchronized (BackgroundService.synchronizer) {
                 instance = BackgroundService.this;
-                System.out.println("BackgroundService : getInstance() = "+getInstance());
                 BackgroundService.synchronizer.notify();
             }
         });
@@ -208,15 +209,6 @@ public class BackgroundService extends Service {
         editor.apply();
     }
 
-    public void resetWatch() {
-        try {
-            TextLog.logInfo(this.watch.getStatus());
-            TextLog.logInfo(connectIQ.getConnectedDevices());
-//            setWatch(this.watch.getDeviceIdentifier(), this.watch.getFriendlyName());
-        } catch(Exception e) {
-            e.printStackTrace();
-        }
-    }
 
     public ArrayList<IQDevice> getPairedWatches() {
         try {

@@ -1,6 +1,7 @@
 package com.example.garmingopromobile;
 
 import android.content.Context;
+import android.util.Log;
 
 import com.garmin.android.connectiq.ConnectIQ;
 import com.garmin.android.connectiq.IQApp;
@@ -12,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class GarminDevice extends IQDevice {
+    private static final String TAG = "GarminDevice";
     private ConnectIQ connectIQ;
     private GoPro linkedGoPro;
     private IQApp iqApp;
@@ -30,7 +32,6 @@ public class GarminDevice extends IQDevice {
 
     public GarminDevice(ConnectIQ connectIQ, long deviceId, String name) throws InvalidStateException, ServiceUnavailableException {
         super(deviceId, name);
-        TextLog.logInfo("New watch object created");
         this.connectIQ = connectIQ;
 
         connectIQ.setAdbPort(7381);
@@ -38,7 +39,7 @@ public class GarminDevice extends IQDevice {
         connectIQ.registerForDeviceEvents(this, (device, newStatus) -> {
             switch (newStatus) {
                 case CONNECTED -> {
-                    TextLog.logInfo("Device connected");
+                    TextLog.logInfo("Garmin device connected");
                     try {
                         registerForMessages();
                     } catch (Exception e) {
@@ -46,7 +47,7 @@ public class GarminDevice extends IQDevice {
                     }
                 }
                 case NOT_CONNECTED -> {
-                    TextLog.logInfo("Device not connected");
+                    TextLog.logInfo("Garmin device not connected");
                     if (iqApp != null) {
                         try {
                             connectIQ.unregisterForApplicationEvents(GarminDevice.this, iqApp);
@@ -56,7 +57,7 @@ public class GarminDevice extends IQDevice {
                     }
                 }
                 case NOT_PAIRED -> {
-                    TextLog.logInfo("Device not paired");
+                    TextLog.logError("Garmin device not paired");
                     try {
                         connectIQ.unregisterForDeviceEvents(GarminDevice.this);
                     } catch (InvalidStateException e) {
@@ -64,7 +65,7 @@ public class GarminDevice extends IQDevice {
                     }
                 }
                 case UNKNOWN -> {
-                    TextLog.logInfo("Device unknown");
+                    TextLog.logWarn("Garmin device unknown");
                     try {
                         connectIQ.unregisterForDeviceEvents(GarminDevice.this);
                     } catch (InvalidStateException e) {
@@ -80,12 +81,12 @@ public class GarminDevice extends IQDevice {
             @Override
             public void onApplicationInfoReceived(IQApp iqApp) {
                 GarminDevice.this.iqApp = iqApp;
-                TextLog.logInfo("IQAPP STATUS: "+iqApp.getStatus());
+                TextLog.logInfo("ConnectIQ GoPro Remote widget status : "+iqApp.getStatus());
                 try {
                     connectIQ.registerForAppEvents(GarminDevice.this, GarminDevice.this.iqApp, new ConnectIQ.IQApplicationEventListener() {
                         @Override
                         public void onMessageReceived(IQDevice iqDevice, IQApp iqApp, List<Object> list, ConnectIQ.IQMessageStatus iqMessageStatus) {
-                            TextLog.logInfo("message received");
+                            Log.v(TAG, "Message received from watch");
                             if (iqMessageStatus==ConnectIQ.IQMessageStatus.SUCCESS) {
                                 try {
                                     onReceive(list);
@@ -102,7 +103,7 @@ public class GarminDevice extends IQDevice {
 
             @Override
             public void onApplicationNotInstalled(String s) {
-                TextLog.logInfo("app not installed");
+                TextLog.logError("ConnectIQ GoPro Remote widget not installed on device");
             }
         });
     }
@@ -125,8 +126,8 @@ public class GarminDevice extends IQDevice {
                 try {
                     connectIQ.sendMessage(device, iqApp, message, (iqDevice, iqApp, iqMessageStatus) -> {
                         if (iqMessageStatus != ConnectIQ.IQMessageStatus.SUCCESS) {
-                            TextLog.logInfo("message send failed : "+iqMessageStatus);
-                            TextLog.logInfo("message content : "+message);
+                            TextLog.logError("Message send to watch failed : "+iqMessageStatus);
+                            Log.w(TAG, "Message content : "+message);
                         }
                     });
                 } catch (Exception e) {
@@ -141,23 +142,19 @@ public class GarminDevice extends IQDevice {
 
 
     public void onReceive(List<Object> data) throws InvalidStateException, ServiceUnavailableException {
-        TextLog.logInfo(data);
+        Log.v(TAG, "Data received from watch : "+data);
         Communication type = Communication.values()[(int) ((List<?>) data.get(0)).get(0)];
         Object loadout = ((List<?>) data.get(0)).get(1);
         switch (type) {
             case COM_CONNECT:
                 if ((Integer) loadout == 0) TextLog.logInfo("Watch app started, connecting to gopro : "+linkedGoPro.connect());
                 else TextLog.logInfo("Watch app stopped, disconnecting gopro : "+linkedGoPro.disconnect());
-//                ArrayList<Object> msg = new ArrayList<>();
-//                msg.add(Communication.COM_CONNECT.ordinal());
-//                msg.add(0);
-//                this.send(msg);
                 break;
             case COM_FETCH_SETTINGS:
                 break;
             case COM_PUSH_SETTINGS:
                 linkedGoPro.sendSettings((List<Integer>) loadout);
-                TextLog.logInfo("push settings : "+loadout);
+                TextLog.logInfo("Watch sending settings to GoPro..."+loadout);
                 break;
             case COM_FETCH_STATES:
                 break;
@@ -165,11 +162,11 @@ public class GarminDevice extends IQDevice {
                 break;
             case COM_SHUTTER:
                 linkedGoPro.pressShutter();
-                TextLog.logInfo("shutter");
+                TextLog.logInfo("Watch sending shutter command to GoPro...");
                 break;
             case COM_HIGHLIGHT:
                 linkedGoPro.pressHilight();
-                TextLog.logInfo("hilight");
+                TextLog.logInfo("Watch sending highlight command to GoPro...");
                 break;
             case COM_LOCKED:
                 break;

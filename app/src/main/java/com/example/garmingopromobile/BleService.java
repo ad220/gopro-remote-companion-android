@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,6 +17,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 public class BleService {
+    private static final String TAG = "BleService";
     private static final UUID GOPRO_SERVICE = UUID.fromString("0000fea6-0000-1000-8000-00805f9b34fb");
 
     private enum RequestType {
@@ -144,7 +146,7 @@ public class BleService {
 
     }
 
-//    TODO: tout passer en private
+
     private GoPro gopro;
     private Context appContext;
     private BluetoothDevice bluetoothDevice;
@@ -161,7 +163,7 @@ public class BleService {
     private boolean requestPending;
     private boolean requestAnswered;
     private int requestCounter;
-    public static final Object requestSync = new Object();
+    private static final Object requestSync = new Object();
 
     public BleService(BluetoothDevice bluetoothDevice, Context appContext, GoPro gopro) {
         this.bluetoothDevice = bluetoothDevice;
@@ -202,33 +204,21 @@ public class BleService {
         if (ConnectedAndReady)
             return true;
 
-        TextLog.logInfo(bluetoothDevice);
         if (bluetoothDevice != null) {
             if (goproGatt != null) {
                 disconnect();
             }
-//            if (ActivityCompat.checkSelfPermission(appContext, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-//                TextLog.logInfo("perm not granted");
-//                // TODO: Consider calling
-//                //    ActivityCompat#requestPermissions
-//                // here to request the missing permissions, and then overriding
-//                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-//                //                                          int[] grantResults)
-//                // to handle the case where the user grants the permission. See the documentation
-//                // for ActivityCompat#requestPermissions for more details.
-//                return false;
-//            }
-            TextLog.logInfo("connect gatt");
+            TextLog.logInfo("Connecting to GoPro GATT");
             goproGatt = bluetoothDevice.connectGatt(appContext, false, new BluetoothGattCallback() {
                 @Override
                 public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
                     if (newState == BluetoothProfile.STATE_CONNECTED) {
                         gopro.getLinkedWatch().send(GarminDevice.Communication.COM_CONNECT, 0);
-                        TextLog.logInfo("GoPro ble connected");
+                        TextLog.logInfo("GoPro BLE connected");
                         gatt.discoverServices();
                     } else {
                         gopro.getLinkedWatch().send(GarminDevice.Communication.COM_CONNECT, 1);
-                        TextLog.logInfo("GoPro ble disconnected");
+                        TextLog.logInfo("GoPro BLE disconnected");
                         ConnectedAndReady = false;
                         disconnect();
                     }
@@ -240,7 +230,7 @@ public class BleService {
                     super.onServicesDiscovered(gatt, status);
                     startKeepAlive();
 
-                    TextLog.logInfo("Services discovered");
+                    Log.v(TAG, "Services discovered");
                     for (BluetoothGattService service : gatt.getServices()) {
                         for (BluetoothGattCharacteristic characteristic: service.getCharacteristics()) {
                             if (characteristic.getUuid().equals(GoPro.COMMAND_RESPONSE) || characteristic.getUuid().equals(GoPro.SETTINGS_RESPONSE) ||characteristic.getUuid().equals(GoPro.QUERY_RESPONSE)) {
@@ -256,11 +246,15 @@ public class BleService {
 //                    Register for status change : encoding
                     byte[] registerStatus = new byte[] {(byte) 0x06, QueryID.REGISTER_STATUS.getValue(), StatusID.ENCODING.getValue()};
                     prepareRequest(RequestType.CHARACTERISTIC, GoPro.QUERY_REQUEST, registerStatus, GoPro.QUERY_RESPONSE, null);
+
+//                    Register for available settings changes
+                    byte[] registerAvailable = new byte[] {(byte) 0x06, QueryID.REGISTER_AVAILABLE.getValue(), SettingID.RESOLUTION.getValue(), SettingID.FRAMERATE.getValue(), SettingID.LENS.getValue()};
+                    prepareRequest(RequestType.CHARACTERISTIC, GoPro.QUERY_REQUEST, registerAvailable, GoPro.QUERY_RESPONSE, null);
                 }
 
                 @Override
                 public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-                    TextLog.logInfo("Characteristic written");
+                    Log.v(TAG, "Characteristic written");
                     super.onCharacteristicWrite(gatt, characteristic, status);
                     synchronized (requestSync) {
                         requestAnswered = true;
@@ -273,7 +267,7 @@ public class BleService {
 
                 @Override
                 public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-                    TextLog.logInfo("Descriptor written");
+                    Log.v(TAG, "Descriptor written");
                     super.onDescriptorWrite(gatt, descriptor, status);
                     synchronized (requestSync) {
                         requestAnswered = true;
@@ -286,8 +280,8 @@ public class BleService {
 
                 @Override
                 public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-                    TextLog.logInfo("Received response from camera, uuid="+characteristic.getUuid());
-                    showBytes(characteristic.getValue());
+                    Log.v(TAG, "Received response from camera, characteristic UUID = "+characteristic.getUuid());
+                    Log.v(TAG, "Characteristic value = "+toBytes(characteristic.getValue()));
                     super.onCharacteristicChanged(gatt, characteristic);
 
                     if (!requestUuidQueue.isEmpty() && characteristic.getUuid().equals(responseUuidQueue.get(0))) {
@@ -308,7 +302,7 @@ public class BleService {
 
     private void decodeQuery(byte[] response) {
         if ((response[0] ^ (byte) 0xe0 | (byte) 0x1f) != (byte) 0xff) {
-            TextLog.logInfo("Message too long");
+            Log.w(TAG, "Message too long while decoding query");
             return;
         }
 
@@ -322,10 +316,10 @@ public class BleService {
                     byte[] updatedStatus = Arrays.copyOfRange(response, 3, response.length);
                     gopro.setStatus(updatedStatus);
                 }
-                default -> TextLog.logInfo("Unexpected query ID");
+                default -> TextLog.logWarn("Unexpected query ID");
             }
         }
-        else TextLog.logInfo("Unexpected query ID");
+        else TextLog.logWarn("Unexpected query ID");
     }
 
     private void startKeepAlive() {
@@ -338,7 +332,7 @@ public class BleService {
                 try {
                     Thread.sleep(5000);
                 } catch (InterruptedException e) {
-                    TextLog.logInfo("Keep alive thread interrupted");
+                    TextLog.logWarn("GoPro keep alive loop interrupted");
                     break;
                 }
                 prepareRequest(RequestType.CHARACTERISTIC, GoPro.SETTINGS_REQUEST, request, GoPro.SETTINGS_RESPONSE, response);
@@ -361,12 +355,11 @@ public class BleService {
         responseUuidQueue.add(responseID);
         responseExpectedQueue.add(expectedResponse);
 
-        System.out.print("Submit request : "+type);
         if (!requestPending) {
+            Log.v(TAG, "Submit request : "+type);
             processRequest();
-            TextLog.logInfo();
         }
-        else TextLog.logInfo(" - Unable to process while pending request : "+requestTypeQueue.get(0));
+        else Log.v(TAG, "New request posted in queue of type : "+type);
     }
 
     public void prepareRequest(UUID requestID, byte[] requestData, UUID responseID) {
@@ -400,14 +393,15 @@ public class BleService {
             gatt.writeCharacteristic(characteristic);
             synchronized (requestSync) {
                 try {
-                    System.out.println("trying again");
                     requestSync.wait(500);
+                    if (requestAnswered) Log.w(TAG, "Writing characteristic failed, trying again");
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             };
         } while (!requestAnswered && ++requestCounter<5);
         if (requestCounter==5) {
+            Log.e(TAG, "Writing failed 5 times in a row, disconnecting and trying to reconnect");
             disconnect();
             try {
                 Thread.sleep(1000);
@@ -446,11 +440,12 @@ public class BleService {
         responseExpectedQueue.remove(0);
     }
 
-
-    private void showBytes(byte[] data) {
+    private String toBytes(byte[] data) {
+        StringBuilder result = new StringBuilder();
         for (byte b: data) {
-            System.out.printf("%02x:", b);
+            result.append(String.format("%02x:", b));
         }
-        System.out.println();
+        Log.v(TAG, result.toString());
+        return result.toString();
     }
 }
