@@ -99,7 +99,7 @@ public class BackgroundService extends Service {
         ArrayList<GoPro> pairedGoPros = getPairedGoPros();
 
         new Handler(Looper.getMainLooper()).post(() -> {
-            connectIQ = ConnectIQ.getInstance(BackgroundService.this, ConnectIQ.IQConnectType.TETHERED);
+            connectIQ = ConnectIQ.getInstance(BackgroundService.this, ConnectIQ.IQConnectType.WIRELESS);
             connectIQ.initialize(getApplicationContext(), true, new ConnectIQ.ConnectIQListener() {
                 @Override
                 public void onSdkReady() {
