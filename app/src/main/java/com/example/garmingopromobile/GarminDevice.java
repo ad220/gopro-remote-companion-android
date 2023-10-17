@@ -18,6 +18,8 @@ public class GarminDevice extends IQDevice {
     private GoPro linkedGoPro;
     private IQApp iqApp;
 
+    private boolean connected = false;
+
     public enum Communication {
         COM_CONNECT,
         COM_FETCH_SETTINGS,
@@ -40,6 +42,7 @@ public class GarminDevice extends IQDevice {
             switch (newStatus) {
                 case CONNECTED -> {
                     TextLog.logInfo("Garmin device connected");
+                    connected = true;
                     try {
                         registerForMessages();
                     } catch (Exception e) {
@@ -48,6 +51,7 @@ public class GarminDevice extends IQDevice {
                 }
                 case NOT_CONNECTED -> {
                     TextLog.logInfo("Garmin device not connected");
+                    connected = false;
                     if (iqApp != null) {
                         try {
                             connectIQ.unregisterForApplicationEvents(GarminDevice.this, iqApp);
@@ -58,6 +62,7 @@ public class GarminDevice extends IQDevice {
                 }
                 case NOT_PAIRED -> {
                     TextLog.logError("Garmin device not paired");
+                    connected = false;
                     try {
                         connectIQ.unregisterForDeviceEvents(GarminDevice.this);
                     } catch (InvalidStateException e) {
@@ -66,6 +71,7 @@ public class GarminDevice extends IQDevice {
                 }
                 case UNKNOWN -> {
                     TextLog.logWarn("Garmin device unknown");
+                    connected = false;
                     try {
                         connectIQ.unregisterForDeviceEvents(GarminDevice.this);
                     } catch (InvalidStateException e) {
@@ -74,6 +80,10 @@ public class GarminDevice extends IQDevice {
                 }
             }
         });
+    }
+
+    public boolean isConnected() {
+        return connected;
     }
 
     private void registerForMessages() throws InvalidStateException, ServiceUnavailableException {
@@ -182,6 +192,7 @@ public class GarminDevice extends IQDevice {
             connectIQ.unregisterForApplicationEvents(this, iqApp);
             connectIQ.unregisterForDeviceEvents(this);
             connectIQ.shutdown(context);
+            connected = false;
         } catch (InvalidStateException e) {
             e.printStackTrace();
         }

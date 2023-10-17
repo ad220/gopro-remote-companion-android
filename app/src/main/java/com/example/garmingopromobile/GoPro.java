@@ -126,7 +126,9 @@ public class GoPro {
         return bleService.disconnect();
     }
 
-
+    public boolean isConnected() {
+        return bleService.isConnected();
+    }
     public void pressShutter() {
         // Send the start recording request to the GoPro
         byte[] request = new byte[]{(byte) 0x03, (byte) 0x01, (byte) 0x01, (byte) (isRecording() ? 0x00 : 0x01)};

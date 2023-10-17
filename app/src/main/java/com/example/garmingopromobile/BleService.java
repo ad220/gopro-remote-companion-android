@@ -185,6 +185,10 @@ public class BleService {
     public Boolean ConnectedAndReady = false;
     byte[] lastStatus = new byte[0];
 
+    public boolean isConnected() {
+        return ConnectedAndReady;
+    }
+
     public boolean disconnect() {
         stopKeepAlive();
 
@@ -195,6 +199,7 @@ public class BleService {
         responseUuidQueue.clear();
         responseExpectedQueue.clear();
         goproGatt.close();
+        ConnectedAndReady = false;
         return true;
     }
 
@@ -215,6 +220,7 @@ public class BleService {
                     if (newState == BluetoothProfile.STATE_CONNECTED) {
                         gopro.getLinkedWatch().send(GarminDevice.Communication.COM_CONNECT, 0);
                         TextLog.logInfo("GoPro BLE connected");
+                        ConnectedAndReady = true;
                         gatt.discoverServices();
                     } else {
                         gopro.getLinkedWatch().send(GarminDevice.Communication.COM_CONNECT, 1);
@@ -297,7 +303,7 @@ public class BleService {
             });
 
         }
-        return  false;
+        return false;
     }
 
     private void decodeQuery(byte[] response) {

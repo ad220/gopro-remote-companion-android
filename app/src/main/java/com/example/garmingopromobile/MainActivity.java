@@ -33,6 +33,7 @@ import android.widget.Switch;
 import org.w3c.dom.Text;
 
 import java.util.ArrayList;
+import java.util.Objects;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -109,7 +110,9 @@ public class MainActivity extends AppCompatActivity {
             goproSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-                    backgroundService.setGoPro((GoPro) adapterView.getSelectedItem());
+                    GoPro device = (GoPro) adapterView.getSelectedItem();
+                    if (!Objects.equals(device.getAddress(), backgroundService.getGoPro().getAddress()) || !backgroundService.getGoPro().isConnected())
+                        backgroundService.setGoPro((GoPro) adapterView.getSelectedItem());
                 }
 
                 @Override
@@ -122,7 +125,8 @@ public class MainActivity extends AppCompatActivity {
                 public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
                     try {
                         IQDevice device = (IQDevice) adapterView.getSelectedItem();
-                        backgroundService.setWatch(device.getDeviceIdentifier(), device.getFriendlyName());
+                        if (device.getDeviceIdentifier() != backgroundService.getWatch().getDeviceIdentifier() || !backgroundService.getWatch().isConnected())
+                            backgroundService.setWatch(device.getDeviceIdentifier(), device.getFriendlyName());
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -164,16 +168,33 @@ public class MainActivity extends AppCompatActivity {
 
     private void refreshUI() {
         ArrayList<GoPro> pairedGoPros = backgroundService.getPairedGoPros();
+        int prefGoPro = -1;
+        for (GoPro gopro : pairedGoPros) {
+            if (gopro.getAddress().equals(backgroundService.getGoPro().getAddress())) {
+                prefGoPro = pairedGoPros.indexOf(gopro);
+                break;
+            }
+        }
         ArrayAdapter<GoPro> goproAdapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_spinner_item, pairedGoPros);
         goproAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
 
         ArrayList<IQDevice> pairedGarminDevices = backgroundService.getPairedWatches();
+        int prefGarmin = -1;
+        for (IQDevice watch : pairedGarminDevices) {
+            if (watch.getDeviceIdentifier() == backgroundService.getWatch().getDeviceIdentifier()) {
+                prefGarmin = pairedGarminDevices.indexOf(watch);
+                break;
+            }
+        }
         ArrayAdapter<IQDevice> garminAdapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_spinner_item, pairedGarminDevices);
         garminAdapter.setDropDownViewResource((android.R.layout.simple_spinner_dropdown_item));
 
+        final int prefFinalGoPro = prefGoPro, prefFinalGarmin=prefGarmin;
         runOnUiThread(() -> {
             goproSpinner.setAdapter(goproAdapter);
+            goproSpinner.setSelection(prefFinalGoPro);
             garminSpinner.setAdapter(garminAdapter);
+            garminSpinner.setSelection(prefFinalGarmin);
             backgroundSwitch.setChecked(getSharedPreferences("savedPrefs", MODE_PRIVATE).getBoolean("backgroundToggle", false));
         });
         swipeRefreshLayout.setRefreshing(false);
