@@ -155,9 +155,8 @@ public class BackgroundService extends Service {
     public void setGoPro(GoPro goPro) {
         this.goPro = goPro;
         this.goPro.setLinkedWatch(watch);
-        if (this.watch != null) {
+        if (this.watch != null)
             watch.setLinkedGoPro(goPro);
-        }
 
         SharedPreferences.Editor editor = pref.edit();
         editor.putString("gopro", goPro.getAddress());
@@ -179,7 +178,6 @@ public class BackgroundService extends Service {
         BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
         if (bluetoothAdapter != null) { Set<BluetoothDevice> devices = bluetoothAdapter.getBondedDevices();
-
             for (BluetoothDevice device : devices) {
                 if (device.getName().contains("GoPro")) {
                     pairedGoPros.add(new GoPro(device, this));
