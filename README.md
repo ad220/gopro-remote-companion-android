@@ -1,6 +1,6 @@
 # Companion app for the GoPro remote on Garmin watch
 
-An Android app used as a bridge between a GoPro and the ConnectIQ widget which acts as a remote for the camera. Uses the [Open GoPro Bluetooth Low Energy API](https://gopro.github.io/OpenGoPro/ble_2_0) and the [Garmin ConnectIQ Mobile SDK](https://developer.garmin.com/connect-iq/overview/).
+An Android app used as a bridge between a GoPro and the [ConnectIQ widget](https://github.com/ad220/gopro-remote-connectiq) which acts as a remote for the camera. Uses the [Open GoPro Bluetooth Low Energy API](https://gopro.github.io/OpenGoPro/ble_2_0) and the [Garmin ConnectIQ Mobile SDK](https://developer.garmin.com/connect-iq/overview/).
 
 <img src="doc/screenshots/main_view.jpg" width="300">
 
@@ -15,6 +15,8 @@ Please note that the app is still under development and while this should be sta
 
 ## Installation
 I did not released this on the Play Store for now. You can use Android Studio to build, install and run the app on a connected smartphone with USB debugging on, or you can install the release provided on GitHub.
+
+For now, the location permission must be given through the settings (asking on first app launch not implemented yet), as it is required to scan for bluetooth devices.
 
 ## How to use it
 Make sure you have Garmin ConnectIQ app installed on your phone and that your watch is paired to it (that should not be a problem as it is the proper way to sync your watch). 
