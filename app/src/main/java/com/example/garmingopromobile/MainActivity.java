@@ -111,7 +111,8 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
                     GoPro device = (GoPro) adapterView.getSelectedItem();
-                    if (!Objects.equals(device.getAddress(), backgroundService.getGoPro().getAddress()) || !backgroundService.getGoPro().isConnected())
+                    GoPro currentGoPro = backgroundService.getGoPro();
+                    if (currentGoPro==null || !Objects.equals(device.getAddress(), currentGoPro.getAddress()) || !currentGoPro.isConnected())
                         backgroundService.setGoPro((GoPro) adapterView.getSelectedItem());
                 }
 
@@ -125,7 +126,8 @@ public class MainActivity extends AppCompatActivity {
                 public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
                     try {
                         IQDevice device = (IQDevice) adapterView.getSelectedItem();
-                        if (device.getDeviceIdentifier() != backgroundService.getWatch().getDeviceIdentifier() || !backgroundService.getWatch().isConnected())
+                        GarminDevice currentWatch = backgroundService.getWatch();
+                        if (currentWatch == null && device.getDeviceIdentifier() != currentWatch.getDeviceIdentifier() || !currentWatch.isConnected())
                             backgroundService.setWatch(device.getDeviceIdentifier(), device.getFriendlyName());
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -169,10 +171,12 @@ public class MainActivity extends AppCompatActivity {
     private void refreshUI() {
         ArrayList<GoPro> pairedGoPros = backgroundService.getPairedGoPros();
         int prefGoPro = -1;
-        for (GoPro gopro : pairedGoPros) {
-            if (gopro.getAddress().equals(backgroundService.getGoPro().getAddress())) {
-                prefGoPro = pairedGoPros.indexOf(gopro);
-                break;
+        if (backgroundService.getGoPro() != null) {
+            for (GoPro gopro : pairedGoPros) {
+                if (gopro.getAddress().equals(backgroundService.getGoPro().getAddress())) {
+                    prefGoPro = pairedGoPros.indexOf(gopro);
+                    break;
+                }
             }
         }
         ArrayAdapter<GoPro> goproAdapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_spinner_item, pairedGoPros);
@@ -180,10 +184,12 @@ public class MainActivity extends AppCompatActivity {
 
         ArrayList<IQDevice> pairedGarminDevices = backgroundService.getPairedWatches();
         int prefGarmin = -1;
-        for (IQDevice watch : pairedGarminDevices) {
-            if (watch.getDeviceIdentifier() == backgroundService.getWatch().getDeviceIdentifier()) {
-                prefGarmin = pairedGarminDevices.indexOf(watch);
-                break;
+        if (backgroundService.getWatch() != null) {
+            for (IQDevice watch : pairedGarminDevices) {
+                if (watch.getDeviceIdentifier() == backgroundService.getWatch().getDeviceIdentifier()) {
+                    prefGarmin = pairedGarminDevices.indexOf(watch);
+                    break;
+                }
             }
         }
         ArrayAdapter<IQDevice> garminAdapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_spinner_item, pairedGarminDevices);
