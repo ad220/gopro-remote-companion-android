@@ -2,23 +2,15 @@ package com.example.garmingopromobile;
 
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
-import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import androidx.navigation.NavController;
-import androidx.navigation.Navigation;
-import androidx.navigation.ui.AppBarConfiguration;
-import androidx.navigation.ui.NavigationUI;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
-import com.example.garmingopromobile.databinding.ActivityMainBinding;
 import com.garmin.android.connectiq.IQDevice;
-import com.garmin.android.connectiq.exception.InvalidStateException;
-import com.garmin.android.connectiq.exception.ServiceUnavailableException;
 
 import android.util.Log;
 import android.view.Menu;
@@ -30,15 +22,12 @@ import android.widget.CompoundButton;
 import android.widget.Spinner;
 import android.widget.Switch;
 
-import org.w3c.dom.Text;
-
 import java.util.ArrayList;
 import java.util.Objects;
 
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
-    private AppBarConfiguration appBarConfiguration;
     private BackgroundService backgroundService;
 
     private Spinner goproSpinner;
@@ -231,8 +220,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onSupportNavigateUp() {
-        NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_content_main);
-        return NavigationUI.navigateUp(navController, appBarConfiguration)
-                || super.onSupportNavigateUp();
+        return super.onSupportNavigateUp();
     }
 }
