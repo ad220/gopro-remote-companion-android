@@ -36,8 +36,6 @@ public class GarminDevice extends IQDevice {
         super(deviceId, name);
         this.connectIQ = connectIQ;
 
-        connectIQ.setAdbPort(7381);
-
         connectIQ.registerForDeviceEvents(this, (device, newStatus) -> {
             switch (newStatus) {
                 case CONNECTED -> {
@@ -90,23 +88,23 @@ public class GarminDevice extends IQDevice {
         connectIQ.getApplicationInfo("e3998790-3052-4fe7-8c81-0c11d0fc52fc", this, new ConnectIQ.IQApplicationInfoListener() { // old uuid 1c0c49b8-5abb-4e59-a679-e102757ec01e
             @Override
             public void onApplicationInfoReceived(IQApp iqApp) {
-                GarminDevice.this.iqApp = iqApp;
                 TextLog.logInfo("ConnectIQ GoPro Remote widget status : "+iqApp.getStatus());
+                // next line is a temporary fix because of the following garmin sdk issue
+                // https://forums.garmin.com/developer/connect-iq/f/discussion/379720/android-mobile-sdk---tethered-connection---app-status-unknown/
+                GarminDevice.this.iqApp = iqApp.getStatus() == IQApp.IQAppStatus.INSTALLED ? iqApp : new IQApp("");
                 try {
-                    connectIQ.registerForAppEvents(GarminDevice.this, GarminDevice.this.iqApp, new ConnectIQ.IQApplicationEventListener() {
-                        @Override
-                        public void onMessageReceived(IQDevice iqDevice, IQApp iqApp, List<Object> list, ConnectIQ.IQMessageStatus iqMessageStatus) {
-                            Log.v(TAG, "Message received from watch");
-                            if (iqMessageStatus==ConnectIQ.IQMessageStatus.SUCCESS) {
-                                try {
-                                    onReceive(list);
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
+                    connectIQ.registerForAppEvents(GarminDevice.this, GarminDevice.this.iqApp, (iqDevice, iqApp1, list, iqMessageStatus) -> {
+                        Log.v(TAG, "Message received from watch");
+                        if (iqMessageStatus==ConnectIQ.IQMessageStatus.SUCCESS) {
+                            try {
+                                onReceive(list);
+                            } catch (Exception e) {
+                                e.printStackTrace();
                             }
                         }
                     });
                 } catch (Exception e) {
+                    Log.w(TAG, "Failed to register for messages");
                     e.printStackTrace();
                 }
             }
@@ -135,7 +133,9 @@ public class GarminDevice extends IQDevice {
             public void run() {
                 try {
                     connectIQ.sendMessage(device, iqApp, message, (iqDevice, iqApp, iqMessageStatus) -> {
-                        if (iqMessageStatus != ConnectIQ.IQMessageStatus.SUCCESS) {
+                        // second test in the next line is a temporary fix because of the following garmin sdk issue
+                        // https://forums.garmin.com/developer/connect-iq/f/discussion/379720/android-mobile-sdk---tethered-connection---app-status-unknown/
+                        if (iqMessageStatus != ConnectIQ.IQMessageStatus.SUCCESS && iqApp.getStatus() == IQApp.IQAppStatus.INSTALLED) {
                             TextLog.logError("Message send to watch failed : "+iqMessageStatus);
                             Log.w(TAG, "Message content : "+message);
                         }

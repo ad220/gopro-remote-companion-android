@@ -27,7 +27,9 @@ import java.util.Set;
 
 public class BackgroundService extends Service {
     private static final String TAG = "BackgroundService";
-    public static final Object synchronizer = new Object();
+    public static final Object serviceReadyLock = new Object();
+    private boolean sdkReady;
+    private final Object sdkReadyLock = new Object();
     private static BackgroundService instance;
     private SharedPreferences pref;
     private ConnectIQ connectIQ;
@@ -98,46 +100,56 @@ public class BackgroundService extends Service {
     private void initializeDevices() {
         ArrayList<GoPro> pairedGoPros = getPairedGoPros();
 
+        sdkReady = false;
+
         new Handler(Looper.getMainLooper()).post(() -> {
-            connectIQ = ConnectIQ.getInstance(BackgroundService.this, ConnectIQ.IQConnectType.WIRELESS);
+            connectIQ = ConnectIQ.getInstance(BackgroundService.this, ConnectIQ.IQConnectType.TETHERED);
             connectIQ.initialize(getApplicationContext(), true, new ConnectIQ.ConnectIQListener() {
                 @Override
                 public void onSdkReady() {
-                    try {
-                        ArrayList<IQDevice> pairedGarminDevices;
-                        pairedGarminDevices = (ArrayList<IQDevice>) connectIQ.getKnownDevices();
-                        Log.v(TAG, pairedGarminDevices.toString());
-                        // TODO: cleaner way to fix this
-
-                    } catch (InvalidStateException | ServiceUnavailableException e) {
-                        e.printStackTrace();
+                    synchronized (sdkReadyLock) {
+                        sdkReady = true;
+                        sdkReadyLock.notify();
                     }
+                    Log.v(TAG, "Garmin SDK ready");
                 }
 
                 @Override
                 public void onInitializeError(ConnectIQ.IQSdkErrorStatus iqSdkErrorStatus) {
+                    synchronized (sdkReadyLock) {
+                        sdkReady = false;
+                        sdkReadyLock.notify();
+                    }
                     TextLog.logWarn("Garmin SDK failed to initialize : "+iqSdkErrorStatus);
                 }
 
                 @Override
                 public void onSdkShutDown() {
+                    sdkReady = false;
                     TextLog.logWarn("Garmin SDK shut down");
                 }
             });
-
-            try {
-                setWatch(pref.getLong("garminID", 0), pref.getString("garminName", ""));
-                setGoPro(searchGoProAddress(pairedGoPros, pref.getString("gopro", "")));
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-
-
-            synchronized (BackgroundService.synchronizer) {
-                instance = BackgroundService.this;
-                BackgroundService.synchronizer.notify();
-            }
         });
+
+        try {
+            synchronized (sdkReadyLock) {
+                if (!sdkReady) sdkReadyLock.wait(2000);
+                if (sdkReady) {
+                    setWatch(pref.getLong("garminID", 0), pref.getString("garminName", ""));
+                    setGoPro(searchGoProAddress(pairedGoPros, pref.getString("gopro", "")));
+                } else {
+                    TextLog.logError("Cannot initialize devices, Garmin SDK not ready");
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        synchronized (BackgroundService.serviceReadyLock) {
+            instance = BackgroundService.this;
+            BackgroundService.serviceReadyLock.notify();
+        }
     }
 
 

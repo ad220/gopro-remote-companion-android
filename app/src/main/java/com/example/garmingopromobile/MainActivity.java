@@ -74,8 +74,8 @@ public class MainActivity extends AppCompatActivity {
         if (waitForService) {
             try {
                 Log.v(TAG, "Waiting for service");
-                synchronized (BackgroundService.synchronizer) {
-                    BackgroundService.synchronizer.wait(5000);
+                synchronized (BackgroundService.serviceReadyLock) {
+                    BackgroundService.serviceReadyLock.wait(5000);
                 }
                 Log.v(TAG, "Service started, initializing UI");
             } catch (InterruptedException e) {
