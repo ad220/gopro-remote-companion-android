@@ -50,6 +50,7 @@ public class GarminDevice extends IQDevice {
                 case NOT_CONNECTED -> {
                     TextLog.logInfo("Garmin device not connected");
                     connected = false;
+                    if (linkedGoPro != null && linkedGoPro.isConnected()) linkedGoPro.disconnect();
                     if (iqApp != null) {
                         try {
                             connectIQ.unregisterForApplicationEvents(GarminDevice.this, iqApp);
@@ -85,7 +86,7 @@ public class GarminDevice extends IQDevice {
     }
 
     private void registerForMessages() throws InvalidStateException, ServiceUnavailableException {
-        connectIQ.getApplicationInfo("e3998790-3052-4fe7-8c81-0c11d0fc52fc", this, new ConnectIQ.IQApplicationInfoListener() { // old uuid 1c0c49b8-5abb-4e59-a679-e102757ec01e
+        connectIQ.getApplicationInfo("ede98b81-5b9e-4b9b-b14a-3b46b8185ade", this, new ConnectIQ.IQApplicationInfoListener() { // old uuid 1c0c49b8-5abb-4e59-a679-e102757ec01e
             @Override
             public void onApplicationInfoReceived(IQApp iqApp) {
                 TextLog.logInfo("ConnectIQ GoPro Remote widget status : "+iqApp.getStatus());
@@ -151,7 +152,7 @@ public class GarminDevice extends IQDevice {
     }
 
 
-    public void onReceive(List<Object> data) throws InvalidStateException, ServiceUnavailableException {
+    public void onReceive(List<Object> data) {
         Log.v(TAG, "Data received from watch : "+data);
         Communication type = Communication.values()[(int) ((List<?>) data.get(0)).get(0)];
         Object loadout = ((List<?>) data.get(0)).get(1);

@@ -198,7 +198,7 @@ public class BleService {
         requestDataQueue.clear();
         responseUuidQueue.clear();
         responseExpectedQueue.clear();
-        goproGatt.close();
+        if (goproGatt != null) goproGatt.close();
         ConnectedAndReady = false;
         return true;
     }
@@ -303,6 +303,21 @@ public class BleService {
             });
 
         }
+
+        new Thread(() -> {
+            try {
+                Thread.sleep(2000);
+                if (!ConnectedAndReady) {
+                    gopro.getLinkedWatch().send(GarminDevice.Communication.COM_CONNECT, 1);
+                    TextLog.logInfo("GoPro BLE disconnected");
+                    ConnectedAndReady = false;
+                    disconnect();
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }).start();
+
         return false;
     }
 
