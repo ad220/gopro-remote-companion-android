@@ -41,14 +41,8 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
-    implementation fileTree(dir: 'C:\\Users\\Arthur\\Documents\\AndroidProjects\\connectivity-samples\\BluetoothLeGatt\\Application\\lib', include: ['*.aar', '*.jar'], exclude: [])
-//    implementation "com.garmin.connectiq:ciq-companion-app-sdk:2.0.2@aar"
-//    constraints {
-//        implementation(project("org.jetbrains.kotlin:kotlin-sdklib-jdk7"))
-//        implementation(project("org.jetbrains.kotlin:kotlin-sdklib-jdk8"))
-//    }
 
-//    implementation("com.garmin.connectiq:ciq-companion-app-sdk:2.0.3@aar")
+    implementation("com.garmin.connectiq:ciq-companion-app-sdk:2.0.3@aar")
     implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
     implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
 

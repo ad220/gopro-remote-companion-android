@@ -163,7 +163,7 @@ public class BleService {
     private boolean requestPending;
     private boolean requestAnswered;
     private int requestCounter;
-    private static final Object requestSync = new Object();
+    private static final Object requestLock = new Object();
 
     public BleService(BluetoothDevice bluetoothDevice, Context appContext, GoPro gopro) {
         this.bluetoothDevice = bluetoothDevice;
@@ -198,7 +198,7 @@ public class BleService {
         requestDataQueue.clear();
         responseUuidQueue.clear();
         responseExpectedQueue.clear();
-        goproGatt.close();
+        if (goproGatt != null) goproGatt.close();
         ConnectedAndReady = false;
         return true;
     }
@@ -262,9 +262,9 @@ public class BleService {
                 public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
                     Log.v(TAG, "Characteristic written");
                     super.onCharacteristicWrite(gatt, characteristic, status);
-                    synchronized (requestSync) {
+                    synchronized (requestLock) {
                         requestAnswered = true;
-                        requestSync.notify();
+                        requestLock.notify();
                     }
                     popRequest();
                     if (requestTypeQueue.isEmpty()) requestPending = false;
@@ -275,9 +275,9 @@ public class BleService {
                 public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
                     Log.v(TAG, "Descriptor written");
                     super.onDescriptorWrite(gatt, descriptor, status);
-                    synchronized (requestSync) {
+                    synchronized (requestLock) {
                         requestAnswered = true;
-                        requestSync.notify();
+                        requestLock.notify();
                     }
                     popRequest();
                     if (requestTypeQueue.isEmpty()) requestPending = false;
@@ -303,6 +303,21 @@ public class BleService {
             });
 
         }
+
+        new Thread(() -> {
+            try {
+                Thread.sleep(2000);
+                if (!ConnectedAndReady) {
+                    gopro.getLinkedWatch().send(GarminDevice.Communication.COM_CONNECT, 1);
+                    TextLog.logInfo("GoPro BLE disconnected");
+                    ConnectedAndReady = false;
+                    disconnect();
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }).start();
+
         return false;
     }
 
@@ -397,9 +412,9 @@ public class BleService {
         requestCounter = 0;
         do {
             gatt.writeCharacteristic(characteristic);
-            synchronized (requestSync) {
+            synchronized (requestLock) {
                 try {
-                    requestSync.wait(500);
+                    requestLock.wait(500);
                     if (requestAnswered) Log.w(TAG, "Writing characteristic failed, trying again");
                 } catch (InterruptedException e) {
                     e.printStackTrace();
@@ -423,9 +438,9 @@ public class BleService {
         requestCounter = 10;
         do {
             gatt.writeDescriptor(descriptor);
-            synchronized (requestSync) {
+            synchronized (requestLock) {
                 try {
-                    requestSync.wait(500);
+                    requestLock.wait(500);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
