@@ -6,17 +6,16 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import org.w3c.dom.Text;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Dictionary;
-import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 public class GoPro {
@@ -38,10 +37,11 @@ public class GoPro {
     }
 
     public enum Resolutions {
-        _5K3,
+        _5K,
         _4K,
         _2K7,
-        _1080p
+        _1440,
+        _1080
     }
 
     public enum Ratios {
@@ -87,7 +87,6 @@ public class GoPro {
     }
 
     GarminDevice linkedWatch;
-
     BleService bleService;
     String bleAddress;
     String bleName;
@@ -96,6 +95,14 @@ public class GoPro {
     Hypersmooth hypersmooth;
     LinkedHashMap<Settings, Integer> settings;
     LinkedHashMap<States, Integer> states;
+    Map<Settings, List<Integer>> availableSettings;
+    Map<Settings, Set<Integer>> tmpAvailableSettings;
+    Map<Resolutions, Set<Ratios>> availableRatios;
+
+    private interface MessageProcessor {
+        void processTuple(byte type, byte[] value);
+        void processResult();
+    }
 
 
     public GoPro(BluetoothDevice bluetoothDevice, Context appContext) {
@@ -106,10 +113,13 @@ public class GoPro {
         settings = new LinkedHashMap<>();
         states = new LinkedHashMap<>();
         hypersmooth = null;
+        availableSettings = new LinkedHashMap<>();
+        availableRatios = new HashMap<>();
 
 //        sets settings map order
         for (Settings s : Settings.values()) {
             settings.put(s, null);
+            availableSettings.put(s, new ArrayList<>());
         }
 
 //        sets states map order
@@ -142,35 +152,121 @@ public class GoPro {
 
     }
 
-//    defines object's settings when update received from camera
-    public void setSettings(byte[] updatedSettings) {
-//        Initializes loop
+    public void readTLVMessage(byte[] message) {
+        byte[] data = Arrays.copyOfRange(message, 2, message.length);
+        BleService.QueryID queryID = BleService.QueryID.get(message[0]);
+        byte status = message[1];
+
+        // Initializes loop
         int i = 0;
+        byte type;
         int length;
-        byte setting;
         byte[] value;
 
-//        Decode settings in received message
-        do {
-            setting = updatedSettings[i];
-            length = updatedSettings[i+1];
-            value = Arrays.copyOfRange(updatedSettings, i+2, i+2+length);
+        MessageProcessor messageProcessor;
 
-            if (BleService.SettingID.getAllValues().contains(updatedSettings[i])) decodeSetting(setting, value);
-            else Log.w(TAG, "Unexpected camera setting ID : %x --> %x\n"+setting+" --> "+value[0]);
+        if (status != 0) {
+            TextLog.logWarn("Wrong query status result from camera");
+        }
+
+        switch (queryID) {
+            case REGISTER_SETTINGS, NOTIF_SETTINGS -> {
+                messageProcessor = new MessageProcessor() {
+                    @Override
+                    public void processTuple(byte type, byte[] value) {
+                        Map<Settings, Integer> settingTuples = decodeSetting(type, value);
+                        for (Settings key: settingTuples.keySet()) {
+                            if (settingTuples.get(key) != 0xff) settings.put(key, settingTuples.get(key));
+                            else Log.w(TAG, "Wrong setting detected");
+                        }
+                    }
+
+                    @Override
+                    public void processResult() {
+                        syncSettings();
+                        syncStates();
+                    }
+                };
+            }
+            case REGISTER_STATUS, NOTIF_STATUS, GET_STATUS -> {
+                messageProcessor = new MessageProcessor() {
+                    @Override
+                    public void processTuple(byte type, byte[] value) {
+                        decodeStatus(type, value);
+                    }
+
+                    @Override
+                    public void processResult() {
+                        syncStates();
+                    }
+                };
+            }
+            case REGISTER_AVAILABLE, NOTIF_AVAILABLE -> {
+                tmpAvailableSettings = new LinkedHashMap<>();
+                tmpAvailableSettings.put(Settings.RESOLUTION, new HashSet<>());
+                tmpAvailableSettings.put(Settings.RATIO, new HashSet<>());
+                tmpAvailableSettings.put(Settings.LENS, new HashSet<>());
+                tmpAvailableSettings.put(Settings.FRAMERATE, new HashSet<>());
+                messageProcessor = new MessageProcessor() {
+                    @Override
+                    public void processTuple(byte type, byte[] value) {
+                        Map<Settings, Integer> settingTuples = decodeSetting(type, value);
+                        for (Settings key: settingTuples.keySet()) {
+                            if (type == BleService.SettingID.RESOLUTION.getValue()) {
+                                Integer res = settingTuples.get(Settings.RESOLUTION);
+                                Integer ratio = settingTuples.get(Settings.RATIO);
+                                if (res.equals(GoPro.this.settings.get(Settings.RESOLUTION))) {
+                                    Objects.requireNonNull(tmpAvailableSettings.get(Settings.RESOLUTION)).add(res);
+                                    Objects.requireNonNull(tmpAvailableSettings.get(Settings.RATIO)).add(ratio);
+                                } else {
+                                    if (res != 0xff) Objects.requireNonNull(tmpAvailableSettings.get(Settings.RESOLUTION)).add(res);
+                                }
+                                if (!GoPro.this.availableRatios.containsKey(Resolutions.values()[res]))
+                                    GoPro.this.availableRatios.put(Resolutions.values()[res], new HashSet<>());
+                                GoPro.this.availableRatios.get(Resolutions.values()[res]).add(Ratios.values()[ratio]);
+                            } else {
+                                if (settingTuples.get(key) != 0xff) Objects.requireNonNull(GoPro.this.tmpAvailableSettings.get(key)).add(settingTuples.get(key));
+                                else Log.w(TAG, "Wrong setting detected");
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void processResult() {
+                        syncAvailable();
+                    }
+                };
+            }
+            default -> {
+                TextLog.logWarn("Unexpected query ID");
+                return;
+            }
+        }
+
+        // Decode settings in received message
+        do {
+            type = data[i];
+            length = data[i+1];
+            value = Arrays.copyOfRange(data, i+2, i+2+length);
+
+            messageProcessor.processTuple(type, value);
 
             i+=2+length;
-        } while (i<updatedSettings.length);
+        } while (i<data.length);
 
-//        Send received settings to watch
-//        TODO: detect wrong values on watch
+        messageProcessor.processResult();
+    }
+
+    private void syncSettings() {
         if (settings.containsValue(0xff)) TextLog.logWarn("Wrong setting detected, not sending to watch");
         else {
             TextLog.logInfo("Sending settings to watch...");
             Log.v(TAG, "Settings values :"+settings);
             linkedWatch.send(GarminDevice.Communication.COM_FETCH_SETTINGS, new ArrayList<Integer>(settings.values()));
         }
+    }
 
+    private void syncStates() {
         if (states.containsValue(0xff)) TextLog.logWarn("Wrong state detected, not sending to watch");
         else {
             TextLog.logInfo("Sending states to watch...");
@@ -179,54 +275,90 @@ public class GoPro {
         }
     }
 
-    private void decodeSetting(byte setting, byte[] value) {
+    private void syncAvailable() {
+        List<List<Integer>> availableSettingsArray = new ArrayList<>();
+        List<Integer> tmpSettingList;
+        Set<Integer> tmpSettingSet;
+        for (Settings settingId : Settings.values()) {
+            tmpSettingSet = tmpAvailableSettings.get(settingId);
+            if (tmpSettingSet != null && !tmpSettingSet.isEmpty()) {
+                tmpSettingList = new ArrayList<>(tmpSettingSet);
+                Collections.sort(tmpSettingList);
+                availableSettings.put(settingId, tmpSettingList);
+                availableSettingsArray.add(tmpSettingList);
+            } else {
+                if (settingId == Settings.RATIO) {
+                    List<Ratios> ratioList = new ArrayList<>(Objects.requireNonNull(availableRatios.get(Resolutions.values()[settings.get(Settings.RESOLUTION)])));
+                    Collections.sort(ratioList);
+                    ArrayList<Integer> intRatioList = new ArrayList<>();
+                    for (Ratios r : ratioList) intRatioList.add(r.ordinal());
+                    availableSettingsArray.add(intRatioList);
+                    availableSettings.put(Settings.RATIO, intRatioList);
+                }
+                else
+                    availableSettingsArray.add(new ArrayList<>(Objects.requireNonNull(availableSettings.get(settingId))));
+            }
+        }
+        Log.v(TAG, "Available ratios: "+availableRatios);
+        TextLog.logInfo("Sending available settings to watch...");
+        Log.v(TAG, "Available settings values :" + availableSettingsArray);
+        linkedWatch.send(GarminDevice.Communication.COM_FETCH_AVAILABLE, availableSettingsArray);
+    }
+
+    private Map<Settings, Integer> decodeSetting(byte setting, byte[] value) {
+        Map<Settings, Integer> result = new LinkedHashMap<Settings, Integer>();
+
+        if (!BleService.SettingID.getAllValues().contains(setting)) {
+            Log.w(TAG, "Unexpected camera setting ID : %x --> %x\n" + setting + " --> " + value[0]);
+            return result;
+        }
         switch (Objects.requireNonNull(BleService.SettingID.get(setting))) {
             case RESOLUTION:
                 switch (value[0]) {
                     case (byte) 1 -> {
-                        this.settings.put(Settings.RESOLUTION, Resolutions._4K.ordinal());
-                        this.settings.put(Settings.RATIO, Ratios._16R9.ordinal());
+                        result.put(Settings.RESOLUTION, Resolutions._4K.ordinal());
+                        result.put(Settings.RATIO, Ratios._16R9.ordinal());
                     }
                     case (byte) 4 -> {
-                        this.settings.put(Settings.RESOLUTION, Resolutions._2K7.ordinal());
-                        this.settings.put(Settings.RATIO, Ratios._16R9.ordinal());
+                        result.put(Settings.RESOLUTION, Resolutions._2K7.ordinal());
+                        result.put(Settings.RATIO, Ratios._16R9.ordinal());
                     }
                     case (byte) 6 -> {
-                        this.settings.put(Settings.RESOLUTION, Resolutions._2K7.ordinal());
-                        this.settings.put(Settings.RATIO, Ratios._4R3.ordinal());
+                        result.put(Settings.RESOLUTION, Resolutions._2K7.ordinal());
+                        result.put(Settings.RATIO, Ratios._4R3.ordinal());
                     }
                     case (byte) 9 -> {
-                        this.settings.put(Settings.RESOLUTION, Resolutions._1080p.ordinal());
-                        this.settings.put(Settings.RATIO, Ratios._16R9.ordinal());
+                        result.put(Settings.RESOLUTION, Resolutions._1080.ordinal());
+                        result.put(Settings.RATIO, Ratios._16R9.ordinal());
                     }
                     case (byte) 18 -> {
-                        this.settings.put(Settings.RESOLUTION, Resolutions._4K.ordinal());
-                        this.settings.put(Settings.RATIO, Ratios._4R3.ordinal());
+                        result.put(Settings.RESOLUTION, Resolutions._4K.ordinal());
+                        result.put(Settings.RATIO, Ratios._4R3.ordinal());
                     }
                     case (byte) 26 -> {
-                        this.settings.put(Settings.RESOLUTION, Resolutions._5K3.ordinal());
-                        this.settings.put(Settings.RATIO, Ratios._8R7.ordinal());
+                        result.put(Settings.RESOLUTION, Resolutions._5K.ordinal());
+                        result.put(Settings.RATIO, Ratios._8R7.ordinal());
                     }
                     case (byte) 27 -> {
-                        this.settings.put(Settings.RESOLUTION, Resolutions._5K3.ordinal());
-                        this.settings.put(Settings.RATIO, Ratios._4R3.ordinal());
+                        result.put(Settings.RESOLUTION, Resolutions._5K.ordinal());
+                        result.put(Settings.RATIO, Ratios._4R3.ordinal());
                     }
                     case (byte) 28 -> {
-                        this.settings.put(Settings.RESOLUTION, Resolutions._4K.ordinal());
-                        this.settings.put(Settings.RATIO, Ratios._8R7.ordinal());
+                        result.put(Settings.RESOLUTION, Resolutions._4K.ordinal());
+                        result.put(Settings.RATIO, Ratios._8R7.ordinal());
                     }
                     case (byte) 100 -> {
-                        this.settings.put(Settings.RESOLUTION, Resolutions._5K3.ordinal());
-                        this.settings.put(Settings.RATIO, Ratios._16R9.ordinal());
+                        result.put(Settings.RESOLUTION, Resolutions._5K.ordinal());
+                        result.put(Settings.RATIO, Ratios._16R9.ordinal());
                     }
                     default -> {
-                        this.settings.put(Settings.RESOLUTION, 0xff);
-                        this.settings.put(Settings.RATIO, 0xff);
+                        result.put(Settings.RESOLUTION, 0xff);
+                        result.put(Settings.RATIO, 0xff);
                     }
                 }
                 break;
             case FRAMERATE:
-                this.settings.put(Settings.FRAMERATE, switch (value[0]) {
+                result.put(Settings.FRAMERATE, switch (value[0]) {
                     case (byte) 0, (byte) 13    -> Framerates._240.ordinal();
                     case (byte) 1, (byte) 2     -> Framerates._120.ordinal();
                     case (byte) 5, (byte) 6     -> Framerates._60.ordinal();
@@ -236,7 +368,7 @@ public class GoPro {
                 });
                 break;
             case LENS:
-                this.settings.put(Settings.LENS, switch (value[0]) {
+                result.put(Settings.LENS, switch (value[0]) {
                     case (byte) 0               -> Lenses._LARGE.ordinal();
                     case (byte) 3               -> Lenses._SUPERVIEW.ordinal();
                     case (byte) 4               -> Lenses._LINEAR.ordinal();
@@ -263,6 +395,7 @@ public class GoPro {
             default:
                 TextLog.logWarn("Unexpected setting ID");
         }
+        return result;
     }
 
     public void sendSettings(List<Integer> settings) {
@@ -270,12 +403,21 @@ public class GoPro {
 //        res, ratio, lens, framerate
         byte[] request;
 
+        Resolutions resolution = Resolutions.values()[settings.get(Settings.RESOLUTION.ordinal())];
+        Ratios ratio = Ratios.values()[settings.get(Settings.RATIO.ordinal())];
+        Lenses lens = Lenses.values()[settings.get(Settings.LENS.ordinal())];
+        Framerates framerate = Framerates.values()[settings.get(Settings.FRAMERATE.ordinal())];
+
 //        Resolution and ratio
-        if (!this.settings.get(Settings.RESOLUTION).equals(settings.get(Settings.RESOLUTION.ordinal())) || !this.settings.get(Settings.RATIO).equals(settings.get(Settings.RATIO.ordinal()))) {
+        if (!this.settings.get(Settings.RESOLUTION).equals(resolution.ordinal()) || !this.settings.get(Settings.RATIO).equals(ratio.ordinal())) {
             request = new byte[]{(byte) 0x03, BleService.SettingID.RESOLUTION.getValue(), (byte) 0x01, (byte) 0xff};
+            if (!availableRatios.get(resolution).contains(ratio)) {
+                Log.w(TAG, "Requested resolution/ratio couple not available, resetting ratio");
+                settings.set(Settings.RATIO.ordinal(), Objects.requireNonNull(availableRatios.get(resolution)).iterator().next().ordinal());
+            }
             Log.v(TAG, "Setting following resolution :"+ Resolutions.values()[settings.get(Settings.RESOLUTION.ordinal())]);
             request[3] = switch (Resolutions.values()[settings.get(Settings.RESOLUTION.ordinal())]) {
-                case _5K3 -> switch (Ratios.values()[settings.get(Settings.RATIO.ordinal())]) {
+                case _5K -> switch (Ratios.values()[settings.get(Settings.RATIO.ordinal())]) {
                     case _8R7 -> (byte) 0x1a;
                     case _4R3 -> (byte) 0x1b;
                     case _16R9 -> (byte) 0x64;
@@ -290,7 +432,8 @@ public class GoPro {
                     case _16R9 -> (byte) 0x04;
                     default -> (byte) 0xff;
                 };
-                case _1080p -> switch (Ratios.values()[settings.get(Settings.RATIO.ordinal())]) {
+                case _1440 -> (byte) 0xff;
+                case _1080 -> switch (Ratios.values()[settings.get(Settings.RATIO.ordinal())]) {
                     case _16R9 -> (byte) 0x09;
                     default -> (byte) 0xff;
                 };
@@ -327,34 +470,11 @@ public class GoPro {
         } else Log.v(TAG, "Lens remained the same, no request needed");
     }
 
-    public void setStatus(byte[] updatedStatus) {
-        // same as setSettings, but for states
-        int i = 0;
-        int length;
-        byte status;
-        byte[] value;
-
-        do {
-            status = updatedStatus[i];
-            length = updatedStatus[i+1];
-            value = Arrays.copyOfRange(updatedStatus, i+2, i+2+length);
-
-            if (BleService.StatusID.getAllValues().contains(updatedStatus[i])) decodeStatus(status, value);
-            else Log.w(TAG, "Unexpected camera status ID : %x --> %x\n" + status + " --> " + value[0]);
-
-            i+=2+length;
-        } while (i<updatedStatus.length);
-
-        if (states.containsValue(0xff)) TextLog.logWarn("Wrong state detected");
-        else {
-            TextLog.logInfo("Sending states to watch...");
-            Log.v(TAG, "States values :"+states);
-            linkedWatch.send(GarminDevice.Communication.COM_FETCH_STATES, new ArrayList<Integer>(states.values()));
-        }
-
-    }
-
     public void decodeStatus(byte status, byte[] value) {
+        if (!BleService.StatusID.getAllValues().contains(status)) {
+            Log.w(TAG, "Unexpected camera status ID : %x --> %x\n" + status + " --> " + value[0]);
+            return;
+        }
         switch (Objects.requireNonNull(BleService.StatusID.get(status))) {
             case ENCODING:
                 this.states.put(States.RECORDING, (int) value[0]);

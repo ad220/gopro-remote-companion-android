@@ -26,6 +26,8 @@ public class GarminDevice extends IQDevice {
         COM_PUSH_SETTINGS,
         COM_FETCH_STATES,
         COM_PUSH_STATES,
+        COM_FETCH_AVAILABLE,
+        COM_PUSH_AVAILABLE,
         COM_SHUTTER,
         COM_HIGHLIGHT,
         COM_LOCKED,

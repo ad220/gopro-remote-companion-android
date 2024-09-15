@@ -11,9 +11,10 @@ import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.util.Log;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.UUID;
 
 public class BleService {
@@ -164,6 +165,8 @@ public class BleService {
     private boolean requestAnswered;
     private int requestCounter;
     private static final Object requestLock = new Object();
+    private ByteArrayOutputStream longReplyBuffer;
+    private int longReplyLength;
 
     public BleService(BluetoothDevice bluetoothDevice, Context appContext, GoPro gopro) {
         this.bluetoothDevice = bluetoothDevice;
@@ -290,13 +293,12 @@ public class BleService {
                     Log.v(TAG, "Characteristic value = "+toBytes(characteristic.getValue()));
                     super.onCharacteristicChanged(gatt, characteristic);
 
-                    if (!requestUuidQueue.isEmpty() && characteristic.getUuid().equals(responseUuidQueue.get(0))) {
-                        if (characteristic.getUuid().equals(GoPro.QUERY_RESPONSE)) {
+                    if (characteristic.getUuid().equals(GoPro.QUERY_RESPONSE)) {
+                        try {
                             decodeQuery(characteristic.getValue());
+                        } catch (IOException e) {
+                            e.printStackTrace();
                         }
-                    }
-                    else if (characteristic.getUuid().equals(GoPro.QUERY_RESPONSE)) {
-                        decodeQuery(characteristic.getValue());
                     }
 
                 }
@@ -321,26 +323,34 @@ public class BleService {
         return false;
     }
 
-    private void decodeQuery(byte[] response) {
-        if ((response[0] ^ (byte) 0xe0 | (byte) 0x1f) != (byte) 0xff) {
-            Log.w(TAG, "Message too long while decoding query");
-            return;
-        }
-
-        if (QueryID.getAllValues().contains(response[1])) {
-            switch (Objects.requireNonNull(QueryID.get(response[1]))) {
-                case REGISTER_SETTINGS, NOTIF_SETTINGS -> {
-                    byte[] updatedSettings = Arrays.copyOfRange(response, 3, response.length);
-                    gopro.setSettings(updatedSettings);
-                }
-                case REGISTER_STATUS, NOTIF_STATUS, GET_STATUS -> {
-                    byte[] updatedStatus = Arrays.copyOfRange(response, 3, response.length);
-                    gopro.setStatus(updatedStatus);
-                }
-                default -> TextLog.logWarn("Unexpected query ID");
+    private void decodeQuery(byte[] response) throws IOException {
+        if ((response[0] & (byte) 0xe0) == (byte) 0x00) { // 5-bit packets
+            if (QueryID.getAllValues().contains(response[1])) {
+                gopro.readTLVMessage(Arrays.copyOfRange(response, 1, response.length));
             }
+            else TextLog.logWarn("Unexpected query ID");
+        } else if ((response[0] & (byte) 0xe0) == (byte) 0x20) { // 13-bit packets
+            if (QueryID.getAllValues().contains(response[2])) {
+                longReplyLength = ((response[0] & (byte) 0x1f) << 8) + response[1];
+                longReplyBuffer = new ByteArrayOutputStream();
+                longReplyBuffer.write(Arrays.copyOfRange(response, 2, response.length));
+            }
+            else TextLog.logWarn("Unexpected query ID");
+        } else if ((response[0] & (byte) 0xe0) == (byte) 0x40) { // 16-bit packets
+            if (QueryID.getAllValues().contains(response[3])) {
+                longReplyLength = (response[1] << 8) + response[2];
+                longReplyBuffer = new ByteArrayOutputStream();
+                longReplyBuffer.write(Arrays.copyOfRange(response, 3, response.length));
+            }
+            else TextLog.logWarn("Unexpected query ID");
+        } else if ((response[0] & (byte) 0x80) == (byte) 0x80) { // Continuation packet
+            longReplyBuffer.write(Arrays.copyOfRange(response, 1, response.length));
+            if (longReplyBuffer.size() == longReplyLength) {
+                gopro.readTLVMessage(longReplyBuffer.toByteArray());
+            }
+        } else {
+            TextLog.logWarn("Unexpected packet header");
         }
-        else TextLog.logWarn("Unexpected query ID");
     }
 
     private void startKeepAlive() {
@@ -415,7 +425,7 @@ public class BleService {
             synchronized (requestLock) {
                 try {
                     requestLock.wait(500);
-                    if (requestAnswered) Log.w(TAG, "Writing characteristic failed, trying again");
+                    if (!requestAnswered) Log.w(TAG, "Writing characteristic failed, trying again");
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
