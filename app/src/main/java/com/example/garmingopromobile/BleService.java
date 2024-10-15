@@ -290,7 +290,7 @@ public class BleService {
                 @Override
                 public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
                     Log.v(TAG, "Received response from camera, characteristic UUID = "+characteristic.getUuid());
-                    Log.v(TAG, "Characteristic value = "+toBytes(characteristic.getValue()));
+                    Log.v(TAG, "Characteristic value = "+bytesToString(characteristic.getValue()));
                     super.onCharacteristicChanged(gatt, characteristic);
 
                     if (characteristic.getUuid().equals(GoPro.QUERY_RESPONSE)) {
@@ -471,12 +471,12 @@ public class BleService {
         responseExpectedQueue.remove(0);
     }
 
-    private String toBytes(byte[] data) {
+    public static String bytesToString(byte[] data) {
         StringBuilder result = new StringBuilder();
         for (byte b: data) {
             result.append(String.format("%02x:", b));
         }
-        Log.v(TAG, result.toString());
+//        Log.v(TAG, result.toString());
         return result.toString();
     }
 }

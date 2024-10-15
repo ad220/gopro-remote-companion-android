@@ -37,6 +37,7 @@ public class GoPro {
     }
 
     public enum Resolutions {
+        _5K3,
         _5K,
         _4K,
         _2K7,
@@ -47,7 +48,8 @@ public class GoPro {
     public enum Ratios {
         _8R7,
         _4R3,
-        _16R9
+        _16R9,
+        _9R16
     }
 
     public enum Lenses {
@@ -55,7 +57,8 @@ public class GoPro {
         _SUPERVIEW,
         _LARGE,
         _LINEAR,
-        _LINEARLOCK
+        _LINEARLOCK,
+        _NARROW
     }
 
     public enum Framerates {
@@ -97,7 +100,11 @@ public class GoPro {
     LinkedHashMap<States, Integer> states;
     Map<Settings, List<Integer>> availableSettings;
     Map<Settings, Set<Integer>> tmpAvailableSettings;
+    Map<BleService.SettingID, List<Byte>> rawAvailableSettings;
+    Map<BleService.SettingID, Set<Byte>> tmpRawAvailableSettings;
     Map<Resolutions, Set<Ratios>> availableRatios;
+
+
 
     private interface MessageProcessor {
         void processTuple(byte type, byte[] value);
@@ -114,6 +121,7 @@ public class GoPro {
         states = new LinkedHashMap<>();
         hypersmooth = null;
         availableSettings = new LinkedHashMap<>();
+        rawAvailableSettings = new HashMap<>();
         availableRatios = new HashMap<>();
 
 //        sets settings map order
@@ -207,27 +215,33 @@ public class GoPro {
                 tmpAvailableSettings.put(Settings.RATIO, new HashSet<>());
                 tmpAvailableSettings.put(Settings.LENS, new HashSet<>());
                 tmpAvailableSettings.put(Settings.FRAMERATE, new HashSet<>());
+
+                tmpRawAvailableSettings = new HashMap<>();
+                tmpRawAvailableSettings.put(BleService.SettingID.RESOLUTION, new HashSet<>());
+                tmpRawAvailableSettings.put(BleService.SettingID.LENS, new HashSet<>());
+                tmpRawAvailableSettings.put(BleService.SettingID.FRAMERATE, new HashSet<>());
+
                 messageProcessor = new MessageProcessor() {
                     @Override
                     public void processTuple(byte type, byte[] value) {
                         Map<Settings, Integer> settingTuples = decodeSetting(type, value);
-                        for (Settings key: settingTuples.keySet()) {
-                            if (type == BleService.SettingID.RESOLUTION.getValue()) {
-                                Integer res = settingTuples.get(Settings.RESOLUTION);
-                                Integer ratio = settingTuples.get(Settings.RATIO);
-                                if (res.equals(GoPro.this.settings.get(Settings.RESOLUTION))) {
-                                    Objects.requireNonNull(tmpAvailableSettings.get(Settings.RESOLUTION)).add(res);
-                                    Objects.requireNonNull(tmpAvailableSettings.get(Settings.RATIO)).add(ratio);
-                                } else {
-                                    if (res != 0xff) Objects.requireNonNull(tmpAvailableSettings.get(Settings.RESOLUTION)).add(res);
-                                }
-                                if (!GoPro.this.availableRatios.containsKey(Resolutions.values()[res]))
-                                    GoPro.this.availableRatios.put(Resolutions.values()[res], new HashSet<>());
-                                GoPro.this.availableRatios.get(Resolutions.values()[res]).add(Ratios.values()[ratio]);
-                            } else {
-                                if (settingTuples.get(key) != 0xff) Objects.requireNonNull(GoPro.this.tmpAvailableSettings.get(key)).add(settingTuples.get(key));
-                                else Log.w(TAG, "Wrong setting detected");
-                            }
+                        BleService.SettingID decodedType = BleService.SettingID.get(type);
+                        if ((decodedType == BleService.SettingID.RESOLUTION || decodedType == BleService.SettingID.LENS || decodedType == BleService.SettingID.FRAMERATE) && value.length>0)
+                            tmpRawAvailableSettings.get(decodedType).add(value[0]);
+                        if (type == BleService.SettingID.RESOLUTION.getValue()) {
+                            Integer res = settingTuples.get(Settings.RESOLUTION);
+                            Integer ratio = settingTuples.get(Settings.RATIO);
+                            if (res != 0xff)
+                                Objects.requireNonNull(tmpAvailableSettings.get(Settings.RESOLUTION)).add(res);
+                            if (res.equals(GoPro.this.settings.get(Settings.RESOLUTION)))
+                                Objects.requireNonNull(tmpAvailableSettings.get(Settings.RATIO)).add(ratio);
+                            if (!GoPro.this.availableRatios.containsKey(Resolutions.values()[res]))
+                                GoPro.this.availableRatios.put(Resolutions.values()[res], new HashSet<>());
+                            GoPro.this.availableRatios.get(Resolutions.values()[res]).add(Ratios.values()[ratio]);
+                        } else if (!settingTuples.isEmpty()) {
+                            Settings key = (Settings) settingTuples.keySet().toArray()[0];
+                            if (settingTuples.get(key) != 0xff) Objects.requireNonNull(GoPro.this.tmpAvailableSettings.get(key)).add(settingTuples.get(key));
+                            else Log.w(TAG, "Wrong setting detected");
                         }
                     }
 
@@ -299,6 +313,12 @@ public class GoPro {
                     availableSettingsArray.add(new ArrayList<>(Objects.requireNonNull(availableSettings.get(settingId))));
             }
         }
+
+        for (BleService.SettingID settingId : BleService.SettingID.values()) {
+            Set<Byte> tmpRawSettingSet = tmpRawAvailableSettings.get(settingId);
+            if (tmpRawSettingSet != null && !tmpRawSettingSet.isEmpty())
+                rawAvailableSettings.put(settingId, new ArrayList<>(tmpRawSettingSet));
+        }
         Log.v(TAG, "Available ratios: "+availableRatios);
         TextLog.logInfo("Sending available settings to watch...");
         Log.v(TAG, "Available settings values :" + availableSettingsArray);
@@ -323,8 +343,12 @@ public class GoPro {
                         result.put(Settings.RESOLUTION, Resolutions._2K7.ordinal());
                         result.put(Settings.RATIO, Ratios._16R9.ordinal());
                     }
-                    case (byte) 6 -> {
+                    case (byte) 6, (byte) 111 -> {
                         result.put(Settings.RESOLUTION, Resolutions._2K7.ordinal());
+                        result.put(Settings.RATIO, Ratios._4R3.ordinal());
+                    }
+                    case (byte) 7 -> {
+                        result.put(Settings.RESOLUTION, Resolutions._1440.ordinal());
                         result.put(Settings.RATIO, Ratios._4R3.ordinal());
                     }
                     case (byte) 9 -> {
@@ -335,21 +359,37 @@ public class GoPro {
                         result.put(Settings.RESOLUTION, Resolutions._4K.ordinal());
                         result.put(Settings.RATIO, Ratios._4R3.ordinal());
                     }
-                    case (byte) 26 -> {
+                    case (byte) 24 -> {
                         result.put(Settings.RESOLUTION, Resolutions._5K.ordinal());
-                        result.put(Settings.RATIO, Ratios._8R7.ordinal());
+                        result.put(Settings.RATIO, Ratios._16R9.ordinal());
                     }
-                    case (byte) 27 -> {
+                    case (byte) 25 -> {
                         result.put(Settings.RESOLUTION, Resolutions._5K.ordinal());
                         result.put(Settings.RATIO, Ratios._4R3.ordinal());
                     }
-                    case (byte) 28 -> {
+                    case (byte) 26, (byte) 107 -> {
+                        result.put(Settings.RESOLUTION, Resolutions._5K3.ordinal());
+                        result.put(Settings.RATIO, Ratios._8R7.ordinal());
+                    }
+                    case (byte) 27 -> {
+                        result.put(Settings.RESOLUTION, Resolutions._5K3.ordinal());
+                        result.put(Settings.RATIO, Ratios._4R3.ordinal());
+                    }
+                    case (byte) 28, (byte) 108 -> {
                         result.put(Settings.RESOLUTION, Resolutions._4K.ordinal());
                         result.put(Settings.RATIO, Ratios._8R7.ordinal());
                     }
                     case (byte) 100 -> {
-                        result.put(Settings.RESOLUTION, Resolutions._5K.ordinal());
+                        result.put(Settings.RESOLUTION, Resolutions._5K3.ordinal());
                         result.put(Settings.RATIO, Ratios._16R9.ordinal());
+                    }
+                    case (byte) 109 -> {
+                        result.put(Settings.RESOLUTION, Resolutions._4K.ordinal());
+                        result.put(Settings.RATIO, Ratios._9R16.ordinal());
+                    }
+                    case (byte) 110 -> {
+                        result.put(Settings.RESOLUTION, Resolutions._1080.ordinal());
+                        result.put(Settings.RATIO, Ratios._9R16.ordinal());
                     }
                     default -> {
                         result.put(Settings.RESOLUTION, 0xff);
@@ -370,10 +410,11 @@ public class GoPro {
             case LENS:
                 result.put(Settings.LENS, switch (value[0]) {
                     case (byte) 0               -> Lenses._LARGE.ordinal();
-                    case (byte) 3               -> Lenses._SUPERVIEW.ordinal();
+                    case (byte) 2               -> Lenses._NARROW.ordinal();
+                    case (byte) 3, (byte) 7     -> Lenses._SUPERVIEW.ordinal();
                     case (byte) 4               -> Lenses._LINEAR.ordinal();
-                    case (byte) 9               -> Lenses._HYPERVIEW.ordinal();
-                    case (byte) 10              -> Lenses._LINEARLOCK.ordinal();
+                    case (byte) 8, (byte) 10    -> Lenses._LINEARLOCK.ordinal();
+                    case (byte) 9, (byte) 11    -> Lenses._HYPERVIEW.ordinal();
                     default -> 0xff;
                 });
                 break;
@@ -415,26 +456,38 @@ public class GoPro {
                 Log.w(TAG, "Requested resolution/ratio couple not available, resetting ratio");
                 settings.set(Settings.RATIO.ordinal(), Objects.requireNonNull(availableRatios.get(resolution)).iterator().next().ordinal());
             }
-            Log.v(TAG, "Setting following resolution :"+ Resolutions.values()[settings.get(Settings.RESOLUTION.ordinal())]);
-            request[3] = switch (Resolutions.values()[settings.get(Settings.RESOLUTION.ordinal())]) {
-                case _5K -> switch (Ratios.values()[settings.get(Settings.RATIO.ordinal())]) {
-                    case _8R7 -> (byte) 0x1a;
-                    case _4R3 -> (byte) 0x1b;
-                    case _16R9 -> (byte) 0x64;
-                };
-                case _4K -> switch (Ratios.values()[settings.get(Settings.RATIO.ordinal())]) {
-                    case _8R7 -> (byte) 0x1c;
-                    case _4R3 -> (byte) 0x12;
-                    case _16R9 -> (byte) 0x01;
-                };
-                case _2K7 -> switch (Ratios.values()[settings.get(Settings.RATIO.ordinal())]) {
-                    case _4R3 -> (byte) 0x06;
-                    case _16R9 -> (byte) 0x04;
+            Log.v(TAG, "Setting following resolution :"+ resolution);
+            request[3] = switch (resolution) {
+                case _5K3 -> switch (ratio) {
+                    case _8R7 -> checkSettingId(BleService.SettingID.RESOLUTION, new byte[]{26, 107});
+                    case _4R3 -> checkSettingId(BleService.SettingID.RESOLUTION, new byte[]{27});
+                    case _16R9 -> checkSettingId(BleService.SettingID.RESOLUTION, new byte[]{100});
                     default -> (byte) 0xff;
                 };
-                case _1440 -> (byte) 0xff;
-                case _1080 -> switch (Ratios.values()[settings.get(Settings.RATIO.ordinal())]) {
-                    case _16R9 -> (byte) 0x09;
+                case _5K -> switch (ratio) {
+                    case _4R3 -> checkSettingId(BleService.SettingID.RESOLUTION, new byte[]{25});
+                    case _16R9 -> checkSettingId(BleService.SettingID.RESOLUTION, new byte[]{24});
+                    default -> (byte) 0xff;
+                };
+                case _4K -> switch (ratio) {
+                    case _8R7 -> checkSettingId(BleService.SettingID.RESOLUTION, new byte[]{28, 108});
+                    case _4R3 -> checkSettingId(BleService.SettingID.RESOLUTION, new byte[]{18});
+                    case _16R9 -> checkSettingId(BleService.SettingID.RESOLUTION, new byte[]{1});
+                    case _9R16 -> checkSettingId(BleService.SettingID.RESOLUTION, new byte[]{109});
+                    default -> (byte) 0xff;
+                };
+                case _2K7 -> switch (ratio) {
+                    case _4R3 -> checkSettingId(BleService.SettingID.RESOLUTION, new byte[]{6, 111});
+                    case _16R9 -> checkSettingId(BleService.SettingID.RESOLUTION, new byte[]{4});
+                    default -> (byte) 0xff;
+                };
+                case _1440 -> switch (ratio) {
+                    case _4R3 -> checkSettingId(BleService.SettingID.RESOLUTION, new byte[]{7});
+                    default -> (byte) 0xff;
+                };
+                case _1080 -> switch (ratio) {
+                    case _16R9 -> checkSettingId(BleService.SettingID.RESOLUTION, new byte[]{9});
+                    case _9R16 -> checkSettingId(BleService.SettingID.RESOLUTION, new byte[]{110});
                     default -> (byte) 0xff;
                 };
             };
@@ -442,10 +495,10 @@ public class GoPro {
         } else Log.v(TAG, "Resolution and ratio remained the same, no request needed");
 
 //        Framerate
-        if (!this.settings.get(Settings.FRAMERATE).equals(settings.get(Settings.FRAMERATE.ordinal()))) {
+        if (!this.settings.get(Settings.FRAMERATE).equals(framerate.ordinal())) {
             request = new byte[]{(byte) 0x03, BleService.SettingID.FRAMERATE.getValue(), (byte) 0x01, (byte) 0xff};
             Log.v(TAG, "Setting following framerate :"+ Framerates.values()[settings.get(Settings.FRAMERATE.ordinal())]);
-            request[3] = switch (Framerates.values()[settings.get(Settings.FRAMERATE.ordinal())]) {
+            request[3] = switch (framerate) {
                 case _240 -> isRegionPAL() ? (byte) 0x0d : (byte) 0x00;
                 case _120 -> isRegionPAL() ? (byte) 0x02 : (byte) 0x01;
                 case _60 -> isRegionPAL() ? (byte) 0x06 : (byte) 0x05;
@@ -456,18 +509,29 @@ public class GoPro {
         } else Log.v(TAG, "Framerate remained the same, no request needed");
 
 //        Lens
-        if (!this.settings.get(Settings.LENS).equals(settings.get(Settings.LENS.ordinal()))) {
+        if (!this.settings.get(Settings.LENS).equals(lens.ordinal())) {
             request = new byte[]{(byte) 0x03, BleService.SettingID.LENS.getValue(), (byte) 0x01, (byte) 0xff};
-            Log.v(TAG, "Setting following lens :"+ Lenses.values()[settings.get(Settings.LENS.ordinal())]);
-            request[3] = switch (Lenses.values()[settings.get(Settings.LENS.ordinal())]) {
-                case _HYPERVIEW -> (byte) 0x09;
-                case _SUPERVIEW -> (byte) 0x03;
-                case _LARGE -> (byte) 0x00;
-                case _LINEAR -> (byte) 0x04;
-                case _LINEARLOCK -> (byte) 0x0a;
+            Log.v(TAG, "Setting following lens :"+ lens);
+            request[3] = switch (lens) {
+                case _HYPERVIEW -> checkSettingId(BleService.SettingID.LENS, new byte[]{9, 11});
+                case _SUPERVIEW -> checkSettingId(BleService.SettingID.LENS, new byte[]{3, 7});
+                case _LARGE -> checkSettingId(BleService.SettingID.LENS, new byte[]{0});
+                case _LINEAR -> checkSettingId(BleService.SettingID.LENS, new byte[]{4});
+                case _LINEARLOCK -> checkSettingId(BleService.SettingID.LENS, new byte[]{10, 8});
+                case _NARROW -> checkSettingId(BleService.SettingID.LENS, new byte[]{2});
             };
             bleService.prepareRequest(SETTINGS_REQUEST, request, SETTINGS_RESPONSE);
         } else Log.v(TAG, "Lens remained the same, no request needed");
+    }
+
+    public byte checkSettingId(BleService.SettingID type, byte[] settingsIds) {
+        for (byte settingId : settingsIds) {
+            if (rawAvailableSettings.get(type).contains(settingId))
+                return settingId;
+        }
+        TextLog.logWarn("Setting ID: "+ BleService.bytesToString(settingsIds) +", not found in available settings");
+        Log.v(TAG, "Available settings: "+rawAvailableSettings);
+        return (byte) 0xff;
     }
 
     public void decodeStatus(byte status, byte[] value) {
