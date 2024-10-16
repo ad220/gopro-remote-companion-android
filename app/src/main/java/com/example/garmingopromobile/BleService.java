@@ -170,6 +170,13 @@ public class BleService {
         requestDataQueue = new ArrayList<>();
     }
 
+    private boolean checkBluetoothPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            return ContextCompat.checkSelfPermission(appContext, android.Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(appContext, android.Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED;
+        } else {
+            return ContextCompat.checkSelfPermission(appContext, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        }
+    }
 
     public Boolean ConnectedAndReady = false;
 
@@ -186,7 +193,7 @@ public class BleService {
         requestDataQueue.clear();
 
 
-        if (ContextCompat.checkSelfPermission(appContext, android.Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
+        if (checkBluetoothPermission()) {
             if (goproGatt != null) goproGatt.close();
             ConnectedAndReady = false;
         } else {
@@ -405,7 +412,7 @@ public class BleService {
         requestAnswered = false;
         requestCounter = 0;
         do {
-            if (ActivityCompat.checkSelfPermission(appContext, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            if (!checkBluetoothPermission()) {
                 TextLog.logError("Bluetooth permission not granted, stopped writing characteristic");
                 return;
             }
@@ -435,7 +442,7 @@ public class BleService {
         requestAnswered = false;
         requestCounter = 10;
         do {
-            if (ActivityCompat.checkSelfPermission(appContext, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            if (!checkBluetoothPermission()) {
                 TextLog.logError("Bluetooth permission not granted, stopped writing descriptor");
                 return;
             }

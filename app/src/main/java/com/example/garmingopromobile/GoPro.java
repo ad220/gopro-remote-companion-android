@@ -118,7 +118,7 @@ public class GoPro {
     public GoPro(BluetoothDevice bluetoothDevice, Context appContext) {
         this.bleService = new BleService(bluetoothDevice, appContext, this);
         this.bleAddress = bluetoothDevice.getAddress();
-        if (ActivityCompat.checkSelfPermission(appContext, android.Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(appContext, android.Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
             this.bleName = bluetoothDevice.getName();
         } else {
             Log.w(TAG, "Bluetooth permission not granted, can't get camera name");
@@ -339,6 +339,11 @@ public class GoPro {
 
         if (!BleService.SettingID.getAllValues().contains(setting)) {
             Log.w(TAG, "Unexpected camera setting ID : %x --> %x\n" + setting + " --> " + value[0]);
+            return result;
+        }
+
+        if (value.length == 0) {
+            Log.w(TAG, "Empty setting value");
             return result;
         }
         switch (Objects.requireNonNull(BleService.SettingID.get(setting))) {
