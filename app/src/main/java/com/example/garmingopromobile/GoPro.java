@@ -157,12 +157,14 @@ public class GoPro {
     }
     public void pressShutter() {
         // Send the start recording request to the GoPro
+        TextLog.logInfo("Shutter command sent to GoPro");
         byte[] request = new byte[]{(byte) 0x03, (byte) 0x01, (byte) 0x01, (byte) (isRecording() ? 0x00 : 0x01)};
         bleService.prepareRequest(COMMAND_REQUEST, request);
     }
 
     public void pressHilight() {
         // Hilight current video
+        TextLog.logInfo("Hilight command sent to GoPro");
         byte[] request = new byte[]{(byte) 0x01, (byte) 0x18};
         bleService.prepareRequest(COMMAND_REQUEST, request);
 
@@ -283,7 +285,7 @@ public class GoPro {
     private void syncSettings() {
         if (settings.containsValue(0xff)) TextLog.logWarn("Wrong setting detected, not sending to watch");
         else {
-            TextLog.logInfo("Sending settings to watch...");
+            TextLog.logInfo("Sync settings with watch...");
             Log.v(TAG, "Settings values :"+settings);
             linkedWatch.send(GarminDevice.Communication.COM_FETCH_SETTINGS, new ArrayList<>(settings.values()));
         }
@@ -292,7 +294,7 @@ public class GoPro {
     private void syncStates() {
         if (states.containsValue(0xff)) TextLog.logWarn("Wrong state detected, not sending to watch");
         else {
-            TextLog.logInfo("Sending states to watch...");
+            TextLog.logInfo("Sync states with watch...");
             Log.v(TAG, "States values :"+states);
             linkedWatch.send(GarminDevice.Communication.COM_FETCH_STATES, new ArrayList<>(states.values()));
         }
@@ -329,7 +331,7 @@ public class GoPro {
                 rawAvailableSettings.put(settingId, new ArrayList<>(tmpRawSettingSet));
         }
         Log.v(TAG, "Available ratios: "+availableRatios);
-        TextLog.logInfo("Sending available settings to watch...");
+        TextLog.logInfo("Sync available settings with watch...");
         Log.v(TAG, "Available settings values :" + availableSettingsArray);
         linkedWatch.send(GarminDevice.Communication.COM_FETCH_AVAILABLE, availableSettingsArray);
     }
@@ -456,6 +458,8 @@ public class GoPro {
         Lenses lens = Lenses.values()[settings.get(Settings.LENS.ordinal())];
         Framerates framerate = Framerates.values()[settings.get(Settings.FRAMERATE.ordinal())];
 
+        String changedSettingsLog = "";
+
 //        Resolution and ratio
         if (!this.settings.get(Settings.RESOLUTION).equals(resolution.ordinal()) || !this.settings.get(Settings.RATIO).equals(ratio.ordinal())) {
             request = new byte[]{(byte) 0x03, BleService.SettingID.RESOLUTION.getValue(), (byte) 0x01, (byte) 0xff};
@@ -464,6 +468,7 @@ public class GoPro {
                 settings.set(Settings.RATIO.ordinal(), availableRatios.get(resolution).iterator().next().ordinal());
             }
             Log.v(TAG, "Setting following resolution :"+ resolution);
+            changedSettingsLog += resolution + " " + ratio + " ";
             request[3] = switch (resolution) {
                 case _5K3 -> switch (ratio) {
                     case _8R7 -> checkSettingId(BleService.SettingID.RESOLUTION, new byte[]{26, 107});
@@ -505,6 +510,7 @@ public class GoPro {
         if (!this.settings.get(Settings.FRAMERATE).equals(framerate.ordinal())) {
             request = new byte[]{(byte) 0x03, BleService.SettingID.FRAMERATE.getValue(), (byte) 0x01, (byte) 0xff};
             Log.v(TAG, "Setting following framerate :"+ Framerates.values()[settings.get(Settings.FRAMERATE.ordinal())]);
+            changedSettingsLog += framerate + " ";
             request[3] = switch (framerate) {
                 case _240 -> isRegionPAL() ? (byte) 0x0d : (byte) 0x00;
                 case _120 -> isRegionPAL() ? (byte) 0x02 : (byte) 0x01;
@@ -519,6 +525,7 @@ public class GoPro {
         if (!this.settings.get(Settings.LENS).equals(lens.ordinal())) {
             request = new byte[]{(byte) 0x03, BleService.SettingID.LENS.getValue(), (byte) 0x01, (byte) 0xff};
             Log.v(TAG, "Setting following lens :"+ lens);
+            changedSettingsLog += lens + " ";
             request[3] = switch (lens) {
                 case _HYPERVIEW -> checkSettingId(BleService.SettingID.LENS, new byte[]{9, 11});
                 case _SUPERVIEW -> checkSettingId(BleService.SettingID.LENS, new byte[]{3, 7});
@@ -529,6 +536,9 @@ public class GoPro {
             };
             bleService.prepareRequest(SETTINGS_REQUEST, request);
         } else Log.v(TAG, "Lens remained the same, no request needed");
+
+        if (!changedSettingsLog.isEmpty()) TextLog.logInfo("Settings changed : "+changedSettingsLog);
+        else TextLog.logInfo("No settings changed");
     }
 
     public byte checkSettingId(BleService.SettingID type, byte[] settingsIds) {

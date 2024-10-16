@@ -166,16 +166,16 @@ public class GarminDevice extends IQDevice {
                     TextLog.logInfo("Watch app stopped, disconnecting gopro : " + linkedGoPro.disconnect());
             }
             case COM_PUSH_SETTINGS -> {
+                TextLog.logInfo("Watch pushed new settings...");
                 linkedGoPro.sendSettings((List<Integer>) loadout);
-                TextLog.logInfo("Watch sending settings to GoPro..." + loadout);
             }
             case COM_SHUTTER -> {
+                TextLog.logInfo("Watch sent shutter command...");
                 linkedGoPro.pressShutter();
-                TextLog.logInfo("Watch sending shutter command to GoPro...");
             }
             case COM_HIGHLIGHT -> {
+                TextLog.logInfo("Watch sent highlight command...");
                 linkedGoPro.pressHilight();
-                TextLog.logInfo("Watch sending highlight command to GoPro...");
             }
             default -> {
             }
