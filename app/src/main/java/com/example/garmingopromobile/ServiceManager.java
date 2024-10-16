@@ -5,7 +5,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.util.Log;
-import android.widget.Switch;
+
+import java.util.Objects;
 
 public class ServiceManager extends BroadcastReceiver {
     private static final String TAG = "ServiceManager";
@@ -13,24 +14,18 @@ public class ServiceManager extends BroadcastReceiver {
     public static final String ACTION_SERVICE_STOP = "garmingopromobile.servicemanager.SERVICE_STOP";
 
     private static BackgroundService instance;
-    private static Switch backgroundSwitch;
 
     public static void setInstance(BackgroundService _instance) {
         instance = _instance;
     }
 
-    public static void setSwitch(Switch _backgroundSwitch) {
-        backgroundSwitch = _backgroundSwitch;
-    }
-
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        switch (intent.getAction()) {
+        switch (Objects.requireNonNull(intent.getAction())) {
             case ACTION_SERVICE_STOP -> {
                 if (TextLog.isUIActive()) {
                     instance.toggleBackground(false);
-                    backgroundSwitch.setChecked(false);
                 } else {
                     Log.v(TAG, "ServiceManager: Stopping service");
                     Intent serviceIntent = new Intent(context, BackgroundService.class);
