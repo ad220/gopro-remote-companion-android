@@ -1,7 +1,6 @@
-package com.example.garmingopromobile;
+package garmingoproremote.android.app;
 
 import android.annotation.SuppressLint;
-import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -16,11 +15,11 @@ import android.os.Looper;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
+import androidx.core.app.NotificationCompat;
 
 import com.garmin.android.connectiq.ConnectIQ;
 import com.garmin.android.connectiq.IQDevice;
 import com.garmin.android.connectiq.exception.InvalidStateException;
-import com.garmin.android.connectiq.exception.ServiceUnavailableException;
 
 import java.util.ArrayList;
 import java.util.Set;
@@ -84,7 +83,7 @@ public class BackgroundService extends Service {
             PendingIntent stopPendingIntent = PendingIntent.getBroadcast(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE);
 
             getSystemService(NotificationManager.class).createNotificationChannel(channel);
-            Notification.Builder notification = new Notification.Builder(this, CHANNELID)
+            NotificationCompat.Builder notification = new NotificationCompat.Builder(this, CHANNELID)
                     .setContentText("Garmin GoPro Mobile is running in the background")
                     .setContentTitle("Background service enabled")
                     .setSmallIcon(R.drawable.gopro_alpha_mini)
@@ -205,8 +204,14 @@ public class BackgroundService extends Service {
         return watch;
     }
 
-    public void setWatch(long watchID, String watchName) throws InvalidStateException, ServiceUnavailableException {
-        GarminDevice watch = new GarminDevice(connectIQ, watchID, watchName);
+    public void setWatch(long watchID, String watchName) {
+        GarminDevice watch;
+        try {
+            watch = new GarminDevice(connectIQ, watchID, watchName);
+        } catch (InvalidStateException e) {
+            Log.e(TAG, "Cannot create Garmin device, SDK must not be initialized yet", e);
+            throw new RuntimeException(e);
+        }
         this.watch = watch;
         this.watch.setLinkedGoPro(goPro);
         if (this.goPro != null) {

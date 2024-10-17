@@ -1,4 +1,4 @@
-package com.example.garmingopromobile;
+package garmingoproremote.android.app;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -6,8 +6,6 @@ import android.util.Log;
 import android.view.View;
 import android.widget.ScrollView;
 import android.widget.TextView;
-
-import org.w3c.dom.Text;
 
 public class TextLog {
     static private final String TAG = "TextLog";
@@ -59,9 +57,7 @@ public class TextLog {
         if (logToUI) {
             activity.runOnUiThread(() -> {
                 textView.setText(TextLog.content);
-                scrollView.post(() -> {
-                    scrollView.fullScroll(View.FOCUS_DOWN);
-                });
+                scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
             });
         }
     }

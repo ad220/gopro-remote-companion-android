@@ -1,4 +1,4 @@
-package com.example.garmingopromobile;
+package garmingoproremote.android.app;
 
 import android.content.Context;
 import android.util.Log;
@@ -14,7 +14,7 @@ import java.util.List;
 
 public class GarminDevice extends IQDevice {
     private static final String TAG = "GarminDevice";
-    private ConnectIQ connectIQ;
+    private final ConnectIQ connectIQ;
     private GoPro linkedGoPro;
     private IQApp iqApp;
 
@@ -26,13 +26,15 @@ public class GarminDevice extends IQDevice {
         COM_PUSH_SETTINGS,
         COM_FETCH_STATES,
         COM_PUSH_STATES,
+        COM_FETCH_AVAILABLE,
+        COM_PUSH_AVAILABLE,
         COM_SHUTTER,
         COM_HIGHLIGHT,
         COM_LOCKED,
         COM_PROGRESS
     }
 
-    public GarminDevice(ConnectIQ connectIQ, long deviceId, String name) throws InvalidStateException, ServiceUnavailableException {
+    public GarminDevice(ConnectIQ connectIQ, long deviceId, String name) throws InvalidStateException {
         super(deviceId, name);
         this.connectIQ = connectIQ;
 
@@ -125,7 +127,7 @@ public class GarminDevice extends IQDevice {
         message.add(data);
 
         class ThreadedSend implements Runnable {
-            List<Object> message;
+            final List<Object> message;
 
             ThreadedSend(List<Object> message) {
                 this.message = message;
@@ -157,30 +159,26 @@ public class GarminDevice extends IQDevice {
         Communication type = Communication.values()[(int) ((List<?>) data.get(0)).get(0)];
         Object loadout = ((List<?>) data.get(0)).get(1);
         switch (type) {
-            case COM_CONNECT:
-                if ((Integer) loadout == 0) TextLog.logInfo("Watch app started, connecting to gopro : "+linkedGoPro.connect());
-                else TextLog.logInfo("Watch app stopped, disconnecting gopro : "+linkedGoPro.disconnect());
-                break;
-            case COM_FETCH_SETTINGS:
-                break;
-            case COM_PUSH_SETTINGS:
+            case COM_CONNECT -> {
+                if ((Integer) loadout == 0)
+                    TextLog.logInfo("Watch app started, connecting to gopro : " + linkedGoPro.connect());
+                else
+                    TextLog.logInfo("Watch app stopped, disconnecting gopro : " + linkedGoPro.disconnect());
+            }
+            case COM_PUSH_SETTINGS -> {
+                TextLog.logInfo("Watch pushed new settings...");
                 linkedGoPro.sendSettings((List<Integer>) loadout);
-                TextLog.logInfo("Watch sending settings to GoPro..."+loadout);
-                break;
-            case COM_FETCH_STATES:
-                break;
-            case COM_PUSH_STATES:
-                break;
-            case COM_SHUTTER:
+            }
+            case COM_SHUTTER -> {
+                TextLog.logInfo("Watch sent shutter command...");
                 linkedGoPro.pressShutter();
-                TextLog.logInfo("Watch sending shutter command to GoPro...");
-                break;
-            case COM_HIGHLIGHT:
+            }
+            case COM_HIGHLIGHT -> {
+                TextLog.logInfo("Watch sent highlight command...");
                 linkedGoPro.pressHilight();
-                TextLog.logInfo("Watch sending highlight command to GoPro...");
-                break;
-            case COM_LOCKED:
-                break;
+            }
+            default -> {
+            }
         }
     }
 

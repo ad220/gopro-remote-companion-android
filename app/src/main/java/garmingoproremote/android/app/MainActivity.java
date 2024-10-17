@@ -1,4 +1,4 @@
-package com.example.garmingopromobile;
+package garmingoproremote.android.app;
 
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
@@ -18,7 +18,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
-import android.widget.CompoundButton;
 import android.widget.Spinner;
 import android.widget.Switch;
 
@@ -38,8 +37,10 @@ public class MainActivity extends AppCompatActivity {
 
     private static final Object swipeRefreshSynchronizer = new Object();
 
+    @SuppressWarnings("deprecation") // getRunningServices is deprecated, but it's the only way to check if a service is running
     public boolean foregroundServiceRunning(){
         ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        //noinspection deprecation
         for(ActivityManager.RunningServiceInfo service: activityManager.getRunningServices(Integer.MAX_VALUE)) {
             if(BackgroundService.class.getName().equals(service.service.getClassName())) {
                 return true;
@@ -61,7 +62,7 @@ public class MainActivity extends AppCompatActivity {
             Log.v(TAG, "MainActivity: Foreground Service not running");
         }
 
-        new Thread(() -> {initializeUI(waitForService);}).start();
+        new Thread(() -> initializeUI(waitForService)).start();
     }
 
     @Override
@@ -92,9 +93,6 @@ public class MainActivity extends AppCompatActivity {
         backgroundSwitch = findViewById(R.id.backgroundSwitch);
         swipeRefreshLayout = findViewById(R.id.swipe_refresh);
 
-        ServiceManager.setSwitch(backgroundSwitch);
-
-
         runOnUiThread(() -> {
             goproSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override
@@ -113,14 +111,10 @@ public class MainActivity extends AppCompatActivity {
             garminSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
-                    try {
-                        IQDevice device = (IQDevice) adapterView.getSelectedItem();
-                        GarminDevice currentWatch = backgroundService.getWatch();
-                        if (currentWatch == null && device.getDeviceIdentifier() != currentWatch.getDeviceIdentifier() || !currentWatch.isConnected())
-                            backgroundService.setWatch(device.getDeviceIdentifier(), device.getFriendlyName());
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+                    IQDevice device = (IQDevice) adapterView.getSelectedItem();
+                    GarminDevice currentWatch = backgroundService.getWatch();
+                    if (currentWatch == null || device.getDeviceIdentifier() != currentWatch.getDeviceIdentifier() || !currentWatch.isConnected())
+                        backgroundService.setWatch(device.getDeviceIdentifier(), device.getFriendlyName());
                 }
 
                 @Override
@@ -128,19 +122,11 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
 
-            backgroundSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                    backgroundService.toggleBackground(isChecked);
-                }
-            });
+            backgroundSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> backgroundService.toggleBackground(isChecked));
 
-            swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
-                @Override
-                public void onRefresh() {
-                    refreshUI();
-                }
-            });
+            swipeRefreshLayout.setOnRefreshListener(this::refreshUI);
             swipeRefreshLayout.setRefreshing(true);
+
             synchronized (swipeRefreshSynchronizer) {
                 swipeRefreshSynchronizer.notify();
             }
