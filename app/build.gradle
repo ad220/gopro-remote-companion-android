@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace 'com.example.garmingopromobile'
+    namespace 'garmingoproremote.android.app'
     compileSdk 33
 
     defaultConfig {
-        applicationId "com.example.garmingopromobile"
+        applicationId "garmingoproremote.android.app"
         minSdk 28
         targetSdk 33
         versionCode 1
@@ -19,6 +19,7 @@ android {
     buildTypes {
         release {
             minifyEnabled false
+            debuggable false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

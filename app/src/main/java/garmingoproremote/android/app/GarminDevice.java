@@ -1,4 +1,4 @@
-package com.example.garmingopromobile;
+package garmingoproremote.android.app;
 
 import android.content.Context;
 import android.util.Log;

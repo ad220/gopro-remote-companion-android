@@ -1,4 +1,4 @@
-package com.example.garmingopromobile;
+package garmingoproremote.android.app;
 
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;

@@ -1,4 +1,4 @@
-package com.example.garmingopromobile;
+package garmingoproremote.android.app;
 
 import android.annotation.SuppressLint;
 import android.app.NotificationChannel;
@@ -102,7 +102,7 @@ public class BackgroundService extends Service {
         sdkReady = false;
 
         new Handler(Looper.getMainLooper()).post(() -> {
-            connectIQ = ConnectIQ.getInstance(BackgroundService.this, ConnectIQ.IQConnectType.TETHERED);
+            connectIQ = ConnectIQ.getInstance(BackgroundService.this, ConnectIQ.IQConnectType.WIRELESS);
             connectIQ.initialize(getApplicationContext(), true, new ConnectIQ.ConnectIQListener() {
                 @Override
                 public void onSdkReady() {

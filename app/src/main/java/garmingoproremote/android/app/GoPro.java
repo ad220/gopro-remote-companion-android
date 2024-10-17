@@ -1,4 +1,4 @@
-package com.example.garmingopromobile;
+package garmingoproremote.android.app;
 
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
